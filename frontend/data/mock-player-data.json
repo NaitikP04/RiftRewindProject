@@ -1,0 +1,185 @@
+{
+  "demo1": {
+    "username": "Jeevi",
+    "tag": "0001",
+    "displayName": "Jeevi#0001",
+    "profilePicture": "/placeholder.svg?height=96&width=96",
+    "mainRole": "Mid",
+    "topChampions": [
+      { "name": "Ahri", "winRate": 65, "games": 120 },
+      { "name": "Orianna", "winRate": 62, "games": 40 }
+    ],
+    "highlights": [
+      { "stat": "Win Rate", "value": "65%" },
+      { "stat": "KDA", "value": "4.1" },
+      { "stat": "CS/min", "value": "7.4" }
+    ],
+    "aiInsight": "You dominate mid-game rotations and objective trades. Close games earlier to capitalize on leads.",
+    "progress": {
+      "season": ["2024-01", "2024-06", "2024-12"],
+      "kda": [2.8, 3.4, 4.1],
+      "cs": [6.4, 6.9, 7.4],
+      "winRate": [52, 58, 65]
+    },
+    "personality": "Mid-Game Maestro — you make plays that tilt outcomes.",
+    "seasonMonths": [
+      "2024-01",
+      "2024-02",
+      "2024-03",
+      "2024-04",
+      "2024-05",
+      "2024-06",
+      "2024-07",
+      "2024-08",
+      "2024-09",
+      "2024-10",
+      "2024-11",
+      "2024-12"
+    ],
+    "rankTimeline": [
+      "Silver",
+      "Silver",
+      "Gold",
+      "Gold",
+      "Gold",
+      "Platinum",
+      "Gold",
+      "Gold",
+      "Platinum",
+      "Platinum",
+      "Diamond",
+      "Diamond"
+    ],
+    "rankEvents": {
+      "2024-06": { "message": "Hot streak — wrapped up a 6-game win streak", "champion": "Ahri", "effect": "win" },
+      "2024-07": { "message": "Jeevi tried ADC for 4 games — results mixed", "champion": "Ezreal", "effect": "loss" },
+      "2024-10": { "message": "Pulled off a Camille solo carry over a weekend", "champion": "Camille", "effect": "win" }
+    }
+  },
+  "demo2": {
+    "username": "WardLord",
+    "tag": "EUW",
+    "displayName": "WardLord#EUW",
+    "profilePicture": "/placeholder.svg?height=96&width=96",
+    "mainRole": "Support",
+    "topChampions": [
+      { "name": "Thresh", "winRate": 59, "games": 150 },
+      { "name": "Leona", "winRate": 57, "games": 90 }
+    ],
+    "highlights": [
+      { "stat": "Vision Score", "value": "48" },
+      { "stat": "Win Rate", "value": "59%" },
+      { "stat": "Assists", "value": "11.2" }
+    ],
+    "aiInsight": "Exceptional map control and playmaking — add deeper warding on rotations and time control wards for Baron.",
+    "progress": {
+      "season": ["2024-01", "2024-06", "2024-12"],
+      "vision": [30, 38, 48],
+      "assists": [8.1, 9.5, 11.2],
+      "winRate": [50, 55, 59]
+    },
+    "personality": "Silent Mapmaker — games are won before fights even begin.",
+    "seasonMonths": [
+      "2024-01",
+      "2024-02",
+      "2024-03",
+      "2024-04",
+      "2024-05",
+      "2024-06",
+      "2024-07",
+      "2024-08",
+      "2024-09",
+      "2024-10",
+      "2024-11",
+      "2024-12"
+    ],
+    "rankTimeline": [
+      "Gold",
+      "Gold",
+      "Platinum",
+      "Platinum",
+      "Platinum",
+      "Diamond",
+      "Diamond",
+      "Platinum",
+      "Platinum",
+      "Diamond",
+      "Diamond",
+      "Master"
+    ],
+    "rankEvents": {
+      "2024-06": { "message": "Vision control masterclass — 5-game win streak", "champion": "Thresh", "effect": "win" },
+      "2024-08": {
+        "message": "Experimented with engage supports — took a few losses",
+        "champion": "Nautilus",
+        "effect": "loss"
+      },
+      "2024-11": { "message": "Clutch Baron steals secured Master promos", "champion": "Leona", "effect": "win" }
+    }
+  },
+  "demo3": {
+    "username": "Mountains",
+    "tag": "0818",
+    "displayName": "Mountains#0818",
+    "profilePicture": "/placeholder.svg?height=96&width=96",
+    "mainRole": "Top",
+    "topChampions": [
+      { "name": "Fiora", "winRate": 68, "games": 80 },
+      { "name": "Camille", "winRate": 61, "games": 45 }
+    ],
+    "highlights": [
+      { "stat": "Split Push Winrate", "value": "68%" },
+      { "stat": "Solo Kills", "value": "2.3" },
+      { "stat": "Objective Pressure", "value": "83%" }
+    ],
+    "aiInsight": "You excel at 1v1 pressure and map isolation — work on teamfight adaptation to close games more reliably.",
+    "progress": {
+      "season": ["2024-01", "2024-06", "2024-12"],
+      "winRate": [58, 64, 68],
+      "soloKills": [1.4, 1.9, 2.3],
+      "objectivePressure": [62, 73, 83]
+    },
+    "personality": "Split Pusher — when lanes are empty, you're already taking towers.",
+    "seasonMonths": [
+      "2024-01",
+      "2024-02",
+      "2024-03",
+      "2024-04",
+      "2024-05",
+      "2024-06",
+      "2024-07",
+      "2024-08",
+      "2024-09",
+      "2024-10",
+      "2024-11",
+      "2024-12"
+    ],
+    "rankTimeline": [
+      "Platinum",
+      "Platinum",
+      "Diamond",
+      "Diamond",
+      "Diamond",
+      "Master",
+      "Diamond",
+      "Diamond",
+      "Master",
+      "Master",
+      "Grandmaster",
+      "Grandmaster"
+    ],
+    "rankEvents": {
+      "2024-06": {
+        "message": "Mountains popped off on Camille for 3 games straight",
+        "champion": "Camille",
+        "effect": "win"
+      },
+      "2024-07": { "message": "Tried teamfighting more — didn't go as planned", "champion": "Ornn", "effect": "loss" },
+      "2024-11": {
+        "message": "Split push perfection — 8-game win streak to Grandmaster",
+        "champion": "Fiora",
+        "effect": "win"
+      }
+    }
+  }
+}

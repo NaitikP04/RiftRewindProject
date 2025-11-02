@@ -1,0 +1,126 @@
+/**
+ * RiftReview Persona Theme Tokens
+ * Full palette system for persona-driven theming
+ * Based on Riot Games aesthetic with cinematic dark base
+ */
+
+/* ========================================
+   GLOBAL BASE (Dark Shell — Never Change)
+   ======================================== */
+:root {
+  /* Core background layers */
+  --bg-900: #0b0c10;
+  --bg-800: #121318;
+  --glass: rgba(255, 255, 255, 0.04);
+  --muted-gray: #9aa0a6;
+  --card-bg: rgba(15, 16, 20, 0.6);
+
+  /* Neutral utility tokens (consistent across themes) */
+  --text-primary: #e9edf0;
+  --text-secondary: #9aa0a6;
+  --text-on-card: #f5f7fa;
+  --muted-border: rgba(255, 255, 255, 0.04);
+  --success: #6ee7b7;
+  --danger: #ff6b6b;
+
+  /* Default to Mid-Game Maestro (gold) theme */
+  --accent-primary: #c5a35e;
+  --accent-secondary: #e3c98a;
+  --accent-highlight: #ffd88a;
+  --accent-rim: rgba(197, 163, 94, 0.18);
+  --glow: rgba(197, 163, 94, 0.22);
+  --vignette-start: rgba(0, 0, 0, 0);
+  --vignette-end: rgba(10, 6, 2, 0.6);
+  --vignette-direction: 180deg;
+  --chart-1: #c5a35e;
+  --chart-1-boost: rgba(197, 163, 94, 0.14);
+  --particle: rgba(245, 223, 136, 0.08);
+}
+
+/* ========================================
+   PERSONA 1: Mid-Game Maestro (Gold)
+   ======================================== */
+[data-theme="mid-game"],
+.theme-mid-game {
+  --accent-primary: #c5a35e;
+  --accent-secondary: #e3c98a;
+  --accent-highlight: #ffd88a;
+  --accent-rim: rgba(197, 163, 94, 0.18);
+  --glow: rgba(197, 163, 94, 0.22);
+  --vignette-start: rgba(0, 0, 0, 0);
+  --vignette-end: rgba(10, 6, 2, 0.6);
+  --vignette-direction: 180deg;
+  --chart-1: #c5a35e;
+  --chart-1-boost: rgba(197, 163, 94, 0.14);
+  --particle: rgba(245, 223, 136, 0.08);
+}
+
+/* ========================================
+   PERSONA 2: Silent Mapmaker (Blue/Teal)
+   ======================================== */
+[data-theme="mapmaker"],
+.theme-mapmaker {
+  --accent-primary: #1b66ff;
+  --accent-secondary: #5ea8ff;
+  --accent-highlight: #9fd0ff;
+  --accent-rim: rgba(27, 102, 255, 0.14);
+  --glow: rgba(27, 102, 255, 0.18);
+  --vignette-start: rgba(8, 10, 20, 0);
+  --vignette-end: rgba(4, 6, 12, 0.55);
+  --vignette-direction: 90deg;
+  --chart-1: #1b66ff;
+  --chart-1-boost: rgba(27, 102, 255, 0.12);
+  --particle: rgba(35, 120, 255, 0.06);
+}
+
+/* ========================================
+   PERSONA 3: Split Pusher (Crimson/Red)
+   ======================================== */
+[data-theme="split-push"],
+.theme-split-push {
+  --accent-primary: #e94560;
+  --accent-secondary: #ff7b95;
+  --accent-highlight: #ffb1c1;
+  --accent-rim: rgba(233, 69, 96, 0.16);
+  --glow: rgba(233, 69, 96, 0.22);
+  --vignette-start: rgba(8, 6, 6, 0);
+  --vignette-end: rgba(20, 8, 8, 0.6);
+  --vignette-direction: 270deg;
+  --chart-1: #e94560;
+  --chart-1-boost: rgba(233, 69, 96, 0.12);
+  --particle: rgba(255, 90, 110, 0.07);
+}
+
+/* ========================================
+   NEUTRAL THEME (for comparison/social)
+   ======================================== */
+[data-theme="neutral"],
+.theme-neutral {
+  --accent-primary: #9aa0a6;
+  --accent-secondary: #c1c7cd;
+  --accent-highlight: #e0e4e8;
+  --accent-rim: rgba(154, 160, 166, 0.12);
+  --glow: rgba(154, 160, 166, 0.15);
+  --vignette-start: rgba(0, 0, 0, 0);
+  --vignette-end: rgba(8, 8, 10, 0.5);
+  --vignette-direction: 180deg;
+  --chart-1: #9aa0a6;
+  --chart-1-boost: rgba(154, 160, 166, 0.1);
+  --particle: rgba(200, 205, 210, 0.05);
+}
+
+/* ========================================
+   ACCESSIBILITY VARIANTS
+   High contrast versions for WCAG AA
+   ======================================== */
+.high-contrast {
+  --text-primary: #ffffff;
+  --text-on-card: #ffffff;
+  --accent-rim: rgba(255, 255, 255, 0.25);
+}
+
+/* Darker accent variants for better contrast on light backgrounds */
+:root {
+  --accent-primary-dark: color-mix(in srgb, var(--accent-primary) 80%, black);
+  --accent-primary-light: color-mix(in srgb, var(--accent-primary) 80%, white);
+}
