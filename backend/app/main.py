@@ -10,7 +10,7 @@ import os
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from services import riot_api, year_rewind_agent
+from services import riot_api, year_rewind_agent, profile_service
 
 app = FastAPI(title="Rift Rewind API", version="1.0.0")
 
@@ -127,3 +127,34 @@ async def health_check():
         "status": "healthy",
         "rate_limiter": stats
     }
+
+
+@app.get("/api/profile/{game_name}/{tag_line}")
+async def get_profile(game_name: str, tag_line: str):
+    """
+    Get player profile with summoner info, rank, and main role.
+    Fast endpoint (<5 seconds) for initial profile display.
+    
+    Args:
+        game_name: Player name (before #)
+        tag_line: Tag (after #)
+    
+    Returns:
+        Profile data with summoner icon, level, rank, and main role
+    """
+    try:
+        result = await profile_service.get_player_profile(game_name, tag_line)
+        
+        if not result.get('success'):
+            raise HTTPException(
+                status_code=404,
+                detail=result.get('error', 'Profile not found')
+            )
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error in profile endpoint: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
