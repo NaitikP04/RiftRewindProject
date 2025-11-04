@@ -1,6 +1,6 @@
 """
 Profile Service - Player profile, rank, and summoner data
-Fetches core player information needed for the dashboard.
+Fetches core player information for North American players.
 """
 import os
 import httpx
@@ -13,51 +13,11 @@ load_dotenv()
 RIOT_API_KEY = os.getenv("RIOT_API_KEY")
 HEADERS = {"X-Riot-Token": RIOT_API_KEY}
 
-# Data Dragon version (update periodically)
+# Data Dragon version
 DD_VERSION = "14.22.1"
 DD_BASE_URL = f"https://ddragon.leagueoflegends.com/cdn/{DD_VERSION}"
 
-# Platform routing based on tag
-PLATFORM_ROUTING = {
-    "NA1": "na1",
-    "BR1": "br1",
-    "EUN1": "eun1",
-    "EUW1": "euw1",
-    "JP1": "jp1",
-    "KR1": "kr",
-    "LA1": "la1",
-    "LA2": "la2",
-    "OC1": "oc1",
-    "TR1": "tr1",
-    "RU1": "ru",
-    "PH2": "ph2",
-    "SG2": "sg2",
-    "TH2": "th2",
-    "TW2": "tw2",
-    "VN2": "vn2",
-}
-
-# Regional routing for account API
-REGIONAL_ROUTING = {
-    "NA1": "americas",
-    "BR1": "americas",
-    "LA1": "americas",
-    "LA2": "americas",
-    "KR1": "asia",
-    "JP1": "asia",
-    "OC1": "sea",
-    "PH2": "sea",
-    "SG2": "sea",
-    "TH2": "sea",
-    "TW2": "sea",
-    "VN2": "sea",
-    "EUW1": "europe",
-    "EUN1": "europe",
-    "TR1": "europe",
-    "RU1": "europe",
-}
-
-# Role mapping
+# Role display names
 ROLE_DISPLAY = {
     "TOP": "Top",
     "JUNGLE": "Jungle",
@@ -84,12 +44,9 @@ async def get_player_profile(game_name: str, tag_line: str) -> Dict[str, Any]:
         print(f"📋 Fetching profile for {game_name}#{tag_line}")
         print(f"{'='*60}\n")
         
-        # Determine platform and region
-        tag_upper = tag_line.upper()
-        platform = PLATFORM_ROUTING.get(tag_upper, "na1")
-        region = REGIONAL_ROUTING.get(tag_upper, "americas")
-        
-        print(f"   Platform: {platform}, Region: {region}")
+        # North America region configuration
+        platform = "na1"
+        region = "americas"
         
         # Step 1: Get PUUID
         puuid = await _get_puuid(game_name, tag_line, region)
@@ -111,7 +68,7 @@ async def get_player_profile(game_name: str, tag_line: str) -> Dict[str, Any]:
         
         print(f"✓ Summoner Level: {summoner['summonerLevel']}")
         
-        # Step 3: Get rank (use PUUID directly - new API supports this)
+        # Step 3: Get rank
         rank = await _get_summoner_rank(puuid, platform)
         
         print(f"✓ Rank: {rank['display']}")
@@ -172,11 +129,7 @@ async def _get_puuid(game_name: str, tag_line: str, region: str = "americas") ->
 
 
 async def _get_summoner_by_puuid(puuid: str, platform: str = "na1") -> Optional[Dict[str, Any]]:
-    """
-    Get summoner data (icon, level, name) from PUUID.
-    Note: This endpoint returns limited data. We'll need account-v1 for encrypted summoner ID.
-    """
-    # First, get basic summoner info with encrypted ID
+    """Get summoner data from PUUID."""
     url = f"https://{platform}.api.riotgames.com/lol/summoner/v4/summoners/by-puuid/{puuid}"
     
     await rate_limiter.wait_if_needed()
@@ -188,7 +141,6 @@ async def _get_summoner_by_puuid(puuid: str, platform: str = "na1") -> Optional[
             
             if response.status_code == 200:
                 data = response.json()
-                # The 'id' field is the encrypted summoner ID we need for rank lookup
                 return data
             else:
                 print(f"Error fetching summoner: {response.status_code}")
@@ -200,11 +152,8 @@ async def _get_summoner_by_puuid(puuid: str, platform: str = "na1") -> Optional[
 
 async def _get_summoner_rank(puuid: str, platform: str = "na1") -> Dict[str, Any]:
     """
-    Get player's ranked stats using PUUID.
-    Updated to use entries/by-puuid endpoint.
-    
-    Returns:
-        Dictionary with rank info (defaults to Unranked if no data)
+    Get player's ranked stats.
+    Returns unranked if no ranked data found.
     """
     url = f"https://{platform}.api.riotgames.com/lol/league/v4/entries/by-puuid/{puuid}"
     
@@ -274,18 +223,10 @@ async def _get_summoner_rank(puuid: str, platform: str = "na1") -> Dict[str, Any
             }
 
 
-async def _determine_main_role(puuid: str, region: str = "americas", platform: str = "na1", sample_size: int = 20) -> str:
+async def _determine_main_role(puuid: str, region: str = "americas", platform: str = "na1", sample_size: int = 10) -> str:
     """
     Determine player's main role from recent match history.
-    
-    Args:
-        puuid: Player's PUUID
-        region: Regional routing (americas, europe, asia, sea)
-        platform: Platform routing (na1, euw1, kr, etc.)
-        sample_size: Number of recent matches to check
-    
-    Returns:
-        Main role (Top, Jungle, Mid, ADC, Support, Fill)
+    Analyzes last 10 matches to find most frequently played role.
     """
     try:
         # Fetch recent match IDs

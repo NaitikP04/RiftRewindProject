@@ -10,7 +10,7 @@ import os
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from services import riot_api, year_rewind_agent, profile_service
+from services import riot_api, year_rewind_agent, profile_service, structured_analysis_service
 
 app = FastAPI(title="Rift Rewind API", version="1.0.0")
 
@@ -157,4 +157,42 @@ async def get_profile(game_name: str, tag_line: str):
         raise
     except Exception as e:
         print(f"Error in profile endpoint: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/analysis/{game_name}/{tag_line}")
+async def generate_analysis(game_name: str, tag_line: str, num_matches: int = 100):
+    """
+    Generate structured AI analysis for dashboard.
+    Returns top champions, stat highlights, AI insights, and personality.
+    
+    Expected time: 3-6 minutes depending on match count.
+    
+    Args:
+        game_name: Player name (before #)
+        tag_line: Tag (after #)
+        num_matches: Number of matches to analyze (default: 100)
+    
+    Returns:
+        Structured analysis data for frontend
+    """
+    try:
+        result = await structured_analysis_service.generate_structured_analysis(
+            game_name=game_name,
+            tag_line=tag_line,
+            num_matches=num_matches
+        )
+        
+        if not result.get('success'):
+            raise HTTPException(
+                status_code=400,
+                detail=result.get('error', 'Analysis failed')
+            )
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error in analysis endpoint: {e}")
         raise HTTPException(status_code=500, detail=str(e))
