@@ -8,12 +8,36 @@ import numpy as np
 import pandas as pd
 import httpx
 import os
+import json
+import boto3
 from dotenv import load_dotenv
+from langchain_aws import ChatBedrock
+from . import riot_api
 from .rate_limiter import rate_limiter
+from .bedrock_rate_limiter import bedrock_rate_limiter
 
 load_dotenv()
 RIOT_API_KEY = os.getenv("RIOT_API_KEY")
 HEADERS = {"X-Riot-Token": RIOT_API_KEY}
+
+# Internal LLM for smart tool summarization
+try:
+    internal_bedrock_client = boto3.client(
+        service_name='bedrock-runtime',
+        region_name=os.getenv('AWS_REGION', 'us-east-1'),
+        aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
+        aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
+    )
+
+    haiku_llm = ChatBedrock(
+        client=internal_bedrock_client,
+        model_id="anthropic.claude-3-haiku-20240307-v1:0",
+        model_kwargs={"temperature": 0.3, "max_tokens": 1000},
+        region_name=os.getenv('AWS_REGION', 'us-east-1')
+    )
+except Exception as e:
+    print(f"Warning: Could not initialize internal Haiku LLM for agent_tools. Timeline analysis will be disabled. Error: {e}")
+    haiku_llm = None
 
 # Queue IDs
 RANKED_SOLO = 420
@@ -591,3 +615,131 @@ def identify_playstyle_personality(matches_data: List[Dict], puuid: str) -> Dict
             'total_multikills': df['double_kills'].sum() + df['triple_kills'].sum() + df['quadra_kills'].sum() + df['penta_kills'].sum()
         }
     }
+
+
+async def get_timeline_analysis_for_match(
+    match_id: str,
+    puuid: str,
+    player_champion: str,
+    context_reason: str
+) -> Optional[str]:
+    """
+    Analyzes a single match timeline for a player using an internal, fast LLM (Haiku).
+    This function now pre-processes the timeline to create a summarized log of events
+    to avoid exceeding the LLM's context window.
+    """
+    if not haiku_llm:
+        print("Timeline analysis tool disabled: internal LLM not initialized.")
+        return None
+
+    print(f"   [Deep Dive] Analyzing timeline for match {match_id} ({context_reason})...")
+
+    try:
+        timeline = await riot_api.get_match_timeline(match_id)
+        if not timeline or "info" not in timeline or "frames" not in timeline:
+            print(f"   [Deep Dive] Could not retrieve a valid timeline for match {match_id}")
+            return f"Could not retrieve a valid timeline for match {match_id}."
+
+        # Find the participantId for the given puuid
+        participant_id = -1
+        for p in timeline["info"]["participants"]:
+            if p["puuid"] == puuid:
+                participant_id = p["participantId"]
+                break
+        
+        if participant_id == -1:
+            print(f"   [Deep Dive] Could not find participant with puuid {puuid} in match {match_id}")
+            return f"Could not find participant with puuid {puuid} in match {match_id}."
+
+        # Pre-process the timeline to create a summarized event log
+        event_log = _create_player_event_log(timeline, participant_id)
+        
+        if not event_log:
+            print(f"   [Deep Dive] No significant events found for this player in {match_id}")
+            return "No significant events found for this player in the match."
+
+        prompt = f"""
+You are a League of Legends analyst. Given the following summarized event log for a player playing {player_champion} in a single match (analyzed as a '{context_reason}' game), provide a concise (2-4 sentences) narrative summary of their performance and game progression. Focus on their key moments and overall impact that explain why this game fits the context.
+
+Event Log:
+{event_log}
+
+Narrative Summary:
+"""
+        await bedrock_rate_limiter.wait_if_needed(is_retry=False)
+        response = await haiku_llm.ainvoke(prompt)
+        bedrock_rate_limiter.record_request(success=True)
+        
+        analysis_text = response.content
+        print(f"   [Deep Dive] Insight found: {analysis_text[:100]}...")
+        return analysis_text
+
+    except Exception as e:
+        print(f"   [Deep Dive] Internal LLM failed for {match_id}: {e}")
+        bedrock_rate_limiter.record_request(success=False)
+        return f"AI analysis failed for match {match_id}."
+
+
+def _create_player_event_log(timeline: Dict[str, Any], participant_id: int) -> str:
+    """
+    Parses a raw match timeline and creates a simplified, human-readable log of events
+    for a specific participant. This reduces the token count for the LLM.
+    """
+    event_log = []
+    
+    # Get champion names for all participants for richer logs
+    participant_champions = {p['participantId']: p.get('championName', 'Unknown') for p in timeline['info']['participants']}
+
+    for frame in timeline['info']['frames']:
+        for event in frame['events']:
+            timestamp_min = int(event['timestamp'] / 60000)
+            
+            # ITEM AND SKILL EVENTS (Simplified)
+            if event.get('participantId') == participant_id:
+                if event['type'] == 'SKILL_LEVEL_UP' and event['levelUpType'] == 'NORMAL':
+                    skill_map = {1: 'Q', 2: 'W', 3: 'E', 4: 'R'}
+                    event_log.append(f"[{timestamp_min}m] Leveled up {skill_map.get(event['skillSlot'], 'Skill')}")
+                elif event['type'] == 'ITEM_PURCHASED':
+                    event_log.append(f"[{timestamp_min}m] Purchased an item.")
+
+            # KILLS, DEATHS, ASSISTS
+            if event['type'] == 'CHAMPION_KILL':
+                killer_id = event.get('killerId', 0)
+                victim_id = event['victimId']
+                
+                assisting_ids = event.get('assistingParticipantIds', [])
+                
+                if killer_id == participant_id:
+                    victim_champ = participant_champions.get(victim_id, 'Unknown')
+                    event_log.append(f"[{timestamp_min}m] KILLED {victim_champ}")
+                elif victim_id == participant_id:
+                    killer_champ = participant_champions.get(killer_id, 'Unknown')
+                    event_log.append(f"[{timestamp_min}m] DIED to {killer_champ}")
+                elif participant_id in assisting_ids:
+                    victim_champ = participant_champions.get(victim_id, 'Unknown')
+                    event_log.append(f"[{timestamp_min}m] ASSISTED in killing {victim_champ}")
+
+            # OBJECTIVE EVENTS
+            if event['type'] in ['ELITE_MONSTER_KILL', 'BUILDING_KILL']:
+                killer_id = event.get('killerId', 0)
+                assisting_ids = event.get('assistingParticipantIds', [])
+                if killer_id == participant_id or participant_id in assisting_ids:
+                    if event['type'] == 'ELITE_MONSTER_KILL':
+                        monster_type = event.get('monsterType', 'Monster').replace('_', ' ')
+                        event_log.append(f"[{timestamp_min}m] Helped take {monster_type}")
+                    elif event['type'] == 'BUILDING_KILL':
+                        building_type = event.get('buildingType', 'Building').replace('_', ' ').title()
+                        lane = event.get('laneType', '').replace('_LANE', '')
+                        event_log.append(f"[{timestamp_min}m] Helped destroy a {lane} {building_type}")
+
+    # To keep the log concise, remove duplicate consecutive messages
+    if not event_log:
+        return ""
+        
+    deduplicated_log = [event_log[0]]
+    for i in range(1, len(event_log)):
+        # Only add if it's different from the last message
+        if event_log[i] != event_log[i-1]:
+            deduplicated_log.append(event_log[i])
+            
+    return "\n".join(deduplicated_log)

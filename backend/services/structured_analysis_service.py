@@ -10,6 +10,7 @@ import boto3
 import statistics
 from typing import Dict, Any, List, Optional
 from botocore.exceptions import ClientError
+from langchain_aws import ChatBedrock
 from . import agent_tools, profile_service
 from .rate_limiter import rate_limiter
 from .bedrock_rate_limiter import bedrock_rate_limiter
@@ -24,6 +25,27 @@ bedrock_client = boto3.client(
     aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
     aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
 )
+
+# Shared Haiku LLM for lightweight analysis tasks
+haiku_llm = getattr(agent_tools, "haiku_llm", None)
+if haiku_llm is None:
+    try:
+        internal_bedrock_client = boto3.client(
+            service_name='bedrock-runtime',
+            region_name=os.getenv('AWS_REGION', 'us-east-1'),
+            aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
+            aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
+        )
+
+        haiku_llm = ChatBedrock(
+            client=internal_bedrock_client,
+            model_id="anthropic.claude-3-haiku-20240307-v1:0",
+            model_kwargs={"temperature": 0.3, "max_tokens": 1000},
+            region_name=os.getenv('AWS_REGION', 'us-east-1')
+        )
+    except Exception as e:
+        print(f"Warning: Could not initialize Haiku LLM for structured analysis. Error: {e}")
+        haiku_llm = None
 
 
 async def generate_structured_analysis(
@@ -87,16 +109,55 @@ async def generate_structured_analysis(
         detailed_stats = _extract_detailed_stats(matches_data, puuid)
         
         # Step 5: Use AI to generate complete analysis
+        # ========== NEW: DEEP DIVE ANALYSIS (STEPS 4.1 - 4.3) ==========
+
+        # Step 4.1: Use AI (Haiku) to select 3 key matches
+        print(f"\n� Step 4.1/5: Selecting key matches for deep dive...")
+
+        key_matches_to_analyze = await _select_key_matches(
+            matches_data=matches_data,
+            champion_pool=champion_pool,
+            performance=performance,
+            puuid=puuid
+        )
+        print(f"   Selected {len(key_matches_to_analyze)} matches for timeline analysis.")
+
+        # Step 4.2: Fetch and analyze timeline data for *only* those key matches
+        print(f"\n🔎 Step 4.2/5: Performing deep dive timeline analysis...")
+
+        deep_analysis_results: List[Dict[str, Any]] = []
+        timeline_tasks = []
+        for match_info in key_matches_to_analyze:
+            timeline_tasks.append(
+                agent_tools.get_timeline_analysis_for_match(
+                    match_id=match_info['matchId'],
+                    puuid=puuid,
+                    player_champion=match_info['champion'],
+                    context_reason=match_info['context']
+                )
+            )
+
+        timeline_results = await asyncio.gather(*timeline_tasks) if timeline_tasks else []
+
+        for i, analysis_text in enumerate(timeline_results):
+            if analysis_text:
+                deep_analysis_results.append({
+                    "context": key_matches_to_analyze[i]['context'],
+                    "analysis": analysis_text
+                })
+
+        # Step 4.3: Rename old Step 5 to Step 5
         print(f"\n🤖 Step 5/5: Generating AI insights with Claude Sonnet 4...")
+        # ========== END OF NEW SECTION ==========
         ai_result = await _generate_deep_ai_analysis(
             performance=performance,
             champion_pool=champion_pool,
             playstyle=playstyle,
             detailed_stats=detailed_stats,
             rank_info=profile['rank'],
-            matches_analyzed=len(matches_data)
+            matches_analyzed=len(matches_data),
+            deep_analysis_results=deep_analysis_results
         )
-        
         print(f"\n{'='*60}")
         print(f"✅ Deep Analysis Complete!")
         print(f"{'='*60}\n")
@@ -208,13 +269,92 @@ def _extract_detailed_stats(matches_data: List[Dict[str, Any]], puuid: str) -> D
     return detailed
 
 
+async def _select_key_matches(
+    matches_data: List[Dict[str, Any]],
+    champion_pool: Dict[str, Any],
+    performance: Dict[str, Any],
+    puuid: str
+) -> List[Dict[str, str]]:
+    """
+    Uses a fast AI (Haiku) to select 3-5 interesting matches for deep analysis.
+    """
+    if not haiku_llm: # Use the internal Haiku LLM
+        print("Key match selection disabled: internal LLM not initialized.")
+        return []
+
+    # 1. Find top 3 champs
+    top_champs = [c['name'] for c in champion_pool.get('top_champions', [])[:3]]
+    
+    # 2. Extract simplified match list
+    simplified_matches = []
+    for match in matches_data:
+        player_data = agent_tools.extract_comprehensive_player_data(match, puuid)
+        if player_data:
+            simplified_matches.append({
+                "matchId": match['metadata']['matchId'],
+                "champion": player_data['champion'],
+                "kda": player_data['kda'],
+                "win": player_data['win'],
+                "duration_mins": player_data['game_duration']
+            })
+    
+    if not simplified_matches:
+        return []
+
+    # 3. Create prompt for Haiku
+    prompt = f"""
+    You are a match analyst. Your goal is to select 3-5 key matches from a list for deeper timeline analysis.
+    The player's top champions are: {', '.join(top_champs)}
+    
+    From the following list of matches, select:
+    1.  **"Best Performance"**: A recent game with a very high KDA or on a main champion.
+    2.  **"Worst Defeat"**: A recent game on a main champion with a low KDA and a loss.
+    3.  **"Most ARAM"**: A long game (> 35 mins) with a very high number of deaths.
+
+    Respond *only* with a JSON list in this exact format:
+    [
+      {{"matchId": "MATCH_ID_HERE", "champion": "CHAMPION_NAME", "context": "Best Performance"}},
+      {{"matchId": "MATCH_ID_HERE", "champion": "CHAMPION_NAME", "context": "Worst Defeat"}},
+      {{"matchId": "MATCH_ID_HERE", "champion": "CHAMPION_NAME", "context": "Most ARAM"}}
+    ]
+
+    MATCH LIST:
+    {json.dumps(simplified_matches, default=str)}
+    """
+
+    # 4. Invoke Haiku
+    try:
+        await bedrock_rate_limiter.wait_if_needed(is_retry=False)
+        bedrock_rate_limiter.record_request(success=False)
+
+        result = await haiku_llm.ainvoke(prompt)
+        response_text = result.content
+        
+        bedrock_rate_limiter.record_request(success=True)
+
+        # Extract JSON from response
+        import re
+        json_match = re.search(r'\[[\s\S]*\]', response_text)
+        if json_match:
+            return json.loads(json_match.group())
+        else:
+            print(f"   [Deep Dive] Failed to parse key matches JSON: {response_text}")
+            return []
+            
+    except Exception as e:
+        print(f"   [Deep Dive] Key match selection LLM failed: {e}")
+        bedrock_rate_limiter.record_request(success=False)
+        return []
+
+
 async def _generate_deep_ai_analysis(
     performance: Dict[str, Any],
     champion_pool: Dict[str, Any],
     playstyle: Dict[str, Any],
     detailed_stats: Dict[str, Any],
     rank_info: Dict[str, Any],
-    matches_analyzed: int
+    matches_analyzed: int,
+    deep_analysis_results: List[Dict[str, Any]]  # <-- ADD THIS
 ) -> Dict[str, Any]:
     """
     Use Claude Sonnet 4 to generate deep, personalized analysis.
@@ -229,66 +369,48 @@ PLAYER PROFILE:
 - Matches Analyzed: {matches_analyzed}
 - Main Role: {champion_pool.get('primary_role', 'Unknown')}
 
-PERFORMANCE METRICS:
+AGGREGATE PERFORMANCE ("Wide" Data):
 - Win Rate: {performance.get('overall_win_rate', 0):.1f}%
 - Average KDA: {performance.get('avg_kda', 0):.2f} (K:{performance.get('avg_kills', 0):.1f} / D:{performance.get('avg_deaths', 0):.1f} / A:{performance.get('avg_assists', 0):.1f})
 - CS/min: {performance.get('avg_cs_per_min', 0):.1f}
 - Vision Score/min: {performance.get('avg_vision_per_min', 0):.2f}
-- Damage/min: {performance.get('avg_damage_per_min', 0):.0f}
-- Gold/min: {performance.get('avg_gold_per_min', 0):.0f}
-- Multikills: {performance.get('total_multikills', 0)}
-- Pentakills: {performance.get('total_penta_kills', 0)}
+- Top Champions: {json.dumps([f"{c['name']}: {c['games']} games, {c['win_rate']:.1f}% WR" for c in champion_pool.get('top_champions', [])[:3]], indent=2)}
+- Playstyle: {playstyle.get('primary_trait', 'Unknown')}
+- Advanced Stats: {json.dumps(detailed_stats, indent=2)}
 
-TOP CHAMPIONS:
-{json.dumps([f"{c['name']}: {c['games']} games, {c['win_rate']:.1f}% WR, {c['avg_kda']:.1f} KDA" for c in champion_pool.get('top_champions', [])[:3]], indent=2)}
-
-PLAYSTYLE ANALYSIS:
-- Primary Trait: {playstyle.get('primary_trait', 'Unknown')}
-- Aggression Score: {playstyle.get('scores', {}).get('aggression_score', 0):.0f}/100
-- Carry Potential: {playstyle.get('scores', {}).get('carry_potential', 0):.0f}/100
-- Vision Mastery: {playstyle.get('scores', {}).get('vision_mastery', 0):.0f}/100
-- Teamfight Prowess: {playstyle.get('scores', {}).get('teamfight_prowess', 0):.0f}/100
-
-ADVANCED METRICS:
-{json.dumps(detailed_stats, indent=2)}
-
-IMPROVEMENT TRENDS:
-{json.dumps({
-    'has_trends': performance.get('has_trends', False),
-    'first_half_wr': performance.get('first_half_wr', 0),
-    'second_half_wr': performance.get('second_half_wr', 0),
-    'kda_improvement': performance.get('kda_improvement', 0)
-}, indent=2)}
-
-YOUR TASK:
-1. **Select 3 Best Stat Highlights**: Choose the most impressive, unique, or notable stats. Be specific with numbers.
-
-2. **Write Deep AI Insight (4-5 sentences)**: 
-   - Start with playstyle personality and what defines their play
-   - Highlight 1-2 key strengths with SPECIFIC numbers and context
-   - Identify 1 critical weakness with data (compare to rank benchmarks)
-   - Provide actionable improvement with measurable goals
-   - Use League-specific terminology and insights that show deep understanding
-
-3. **Determine Personality**: Pick ONE that best fits:
-   - "Aggressive Playmaker"
-   - "Teamfight Specialist"  
-   - "Vision Master"
-   - "Carry Player"
-   - "Consistent Performer"
-   - "Strategic Player"
+DEEP DIVE TIMELINE ANALYSIS ("Deep" Data):
+{json.dumps(deep_analysis_results, indent=2) if deep_analysis_results else "No deep analysis available."}
 
 BENCHMARKS (for context):
 - {rank_info.get('tier', 'GOLD')} Average KDA: 2.8-3.2
 - {rank_info.get('tier', 'GOLD')} Average CS/min: 6.0-6.5
 - {rank_info.get('tier', 'GOLD')} Average Vision/min: 0.8-1.2
 
+YOUR TASK:
+Generate 3 Stat Highlights, 1 Deep Insight, and 1 Personality.
+
+1.  **Select 3 Best Stat Highlights**: Choose from the "Wide" Data. Be specific with numbers.
+
+2.  **Write Deep AI Insight (4-5 sentences)**: This is the most important part.
+    -   **You MUST use the "Deep" Data.**
+    -   Find a connection between the "Wide" data and "Deep" data.
+    -   Example: If "Wide" data shows a 30% WR on Vayne, and "Deep" data says "In this match, player died 3 times solo in the side lane," then your insight should be:
+        "Your stats show you struggle on Vayne (30% WR), and we found a 'gameplay bug' that might be the cause: we analyzed a key loss and found a pattern of you getting caught farming solo in a side-lane post-20 minutes. Fixing this one habit could be the key to climbing."
+    -   Identify 1 critical weakness *with evidence from the timeline analysis*.
+    -   Provide 1 actionable improvement.
+
+3.  **Determine Personality**: Pick ONE that best fits:
+    - "Aggressive Playmaker"
+    - "Teamfight Specialist"  
+    - "Vision Master"
+    - "Carry Player"
+    - "Consistent Performer"
+    - "Strategic Player"
+
 IMPORTANT: 
-- No generic statements or templates
-- Every insight must reference specific numbers
-- Compare to rank-appropriate benchmarks
-- Be encouraging but honest about weaknesses
-- Make recommendations measurable and actionable
+- No generic statements.
+- The "Deep AI Insight" MUST be based on the "Deep Dive Timeline Analysis". If that data is empty, just report on the aggregate stats.
+- Connect the timeline event to a broader pattern.
 
 RESPOND IN EXACT JSON FORMAT:
 {{
@@ -297,7 +419,7 @@ RESPOND IN EXACT JSON FORMAT:
     {{"stat": "descriptive title", "value": "number with unit"}},
     {{"stat": "descriptive title", "value": "number with unit"}}
   ],
-  "insight": "your 4-5 sentence deep analysis here",
+  "insight": "your 4-5 sentence deep analysis here, using the deep dive data",
   "personality": "chosen personality"
 }}"""
     
