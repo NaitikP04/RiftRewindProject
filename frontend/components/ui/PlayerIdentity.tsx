@@ -7,6 +7,7 @@ interface PlayerIdentityProps {
   displayName: string
   profilePicture: string
   mainRole: string
+  rank?: string
   size?: "sm" | "md" | "lg"
   showRole?: boolean
   className?: string
@@ -16,13 +17,14 @@ export function PlayerIdentity({
   displayName,
   profilePicture,
   mainRole,
+  rank,
   size = "md",
   showRole = true,
   className,
 }: PlayerIdentityProps) {
   return (
     <div className={cn("flex items-center gap-3", className)}>
-      <PlayerAvatar src={profilePicture} alt={displayName} size={size} showRankBadge />
+      <PlayerAvatar src={profilePicture} alt={displayName} size={size} showRankBadge rank={rank} />
       <div className="flex flex-col">
         <h2
           className={cn(
@@ -35,6 +37,7 @@ export function PlayerIdentity({
           {displayName}
         </h2>
         {showRole && <p className="text-sm text-muted-foreground">{mainRole}</p>}
+        {rank && <p className="text-xs text-muted-foreground">Rank: {rank}</p>}
       </div>
     </div>
   )

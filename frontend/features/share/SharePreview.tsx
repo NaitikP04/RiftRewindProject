@@ -43,10 +43,17 @@ export function SharePreview({ playerData }: SharePreviewProps) {
         </div>
 
         <div className="mb-6 flex flex-col items-center gap-4">
-          <PlayerAvatar src={playerData.profilePicture} alt={playerData.displayName} size="lg" showRankBadge />
+          <PlayerAvatar
+            src={playerData.profilePicture}
+            alt={playerData.displayName}
+            size="lg"
+            showRankBadge
+            rank={playerData.rank}
+          />
 
           <div className="text-center">
             <h2 className="text-3xl font-bold text-white">{playerData.displayName}</h2>
+            <div className="mt-1 text-sm font-semibold text-[var(--muted-gray)]">{playerData.rank}</div>
             <div
               className="mt-2 inline-flex items-center gap-2 rounded-full px-4 py-1"
               style={{ backgroundColor: `${accentColor}20`, border: `1px solid ${accentColor}` }}

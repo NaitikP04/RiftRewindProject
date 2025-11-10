@@ -5,6 +5,7 @@
     "displayName": "Jeevi#0001",
     "profilePicture": "/placeholder.svg?height=96&width=96",
     "mainRole": "Mid",
+  "rank": "Diamond",
     "topChampions": [
       { "name": "Ahri", "winRate": 65, "games": 120 },
       { "name": "Orianna", "winRate": 62, "games": 40 }
@@ -15,6 +16,11 @@
       { "stat": "CS/min", "value": "7.4" }
     ],
     "aiInsight": "You dominate mid-game rotations and objective trades. Close games earlier to capitalize on leads.",
+    "recommendedActions": [
+      "Secure Baron vision two minutes early to convert leads into finishes.",
+      "Reset at 22 minutes to buy control wards before contesting elder objectives.",
+      "Drill side-lane wave syncs to pressure towers while your team sets mid priority."
+    ],
     "progress": {
       "season": ["2024-01", "2024-06", "2024-12"],
       "kda": [2.8, 3.4, 4.1],
@@ -62,6 +68,7 @@
     "displayName": "WardLord#EUW",
     "profilePicture": "/placeholder.svg?height=96&width=96",
     "mainRole": "Support",
+  "rank": "Master",
     "topChampions": [
       { "name": "Thresh", "winRate": 59, "games": 150 },
       { "name": "Leona", "winRate": 57, "games": 90 }
@@ -72,6 +79,11 @@
       { "stat": "Assists", "value": "11.2" }
     ],
     "aiInsight": "Exceptional map control and playmaking — add deeper warding on rotations and time control wards for Baron.",
+    "recommendedActions": [
+      "Replenish control wards after every recall to keep Baron entrances locked down.",
+      "Track enemy jungle pathing with early river wards to set up mid roam plays.",
+      "Ping objectives 45 seconds early to group and layer crowd control."
+    ],
     "progress": {
       "season": ["2024-01", "2024-06", "2024-12"],
       "vision": [30, 38, 48],
@@ -123,6 +135,7 @@
     "displayName": "Mountains#0818",
     "profilePicture": "/placeholder.svg?height=96&width=96",
     "mainRole": "Top",
+  "rank": "Grandmaster",
     "topChampions": [
       { "name": "Fiora", "winRate": 68, "games": 80 },
       { "name": "Camille", "winRate": 61, "games": 45 }
@@ -133,6 +146,11 @@
       { "stat": "Objective Pressure", "value": "83%" }
     ],
     "aiInsight": "You excel at 1v1 pressure and map isolation — work on teamfight adaptation to close games more reliably.",
+    "recommendedActions": [
+      "Shadow your jungler during herald spawns to convert split-push pressure into objectives.",
+      "Time teleports with your support engage to impact first major teamfight.",
+      "Review mid-game deaths to trim risky side-lane pushes after 25 minutes."
+    ],
     "progress": {
       "season": ["2024-01", "2024-06", "2024-12"],
       "winRate": [58, 64, 68],

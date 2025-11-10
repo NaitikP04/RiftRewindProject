@@ -157,7 +157,7 @@ async def generate_structured_analysis(
                 analysis_id, 
                 "deep_dive", 
                 80, 
-                "Selecting key matches for timeline analysis..."
+                "Selecting key matches for detailed breakdown..."
             )
 
         key_matches_to_analyze = await _select_key_matches(
@@ -166,41 +166,63 @@ async def generate_structured_analysis(
             performance=performance,
             puuid=puuid
         )
-        print(f"   Selected {len(key_matches_to_analyze)} matches for timeline analysis.")
+        print(f"   Selected {len(key_matches_to_analyze)} matches for deep stat analysis.")
 
-        # Step 4.2: Fetch and analyze timeline data for *only* those key matches
-        print(f"\n🔎 Step 4.2/5: Performing deep dive timeline analysis...")
+        # Step 4.2: Build detailed stat breakdowns for key matches
+        print(f"\n🔎 Step 4.2/5: Building detailed match breakdowns...")
         if analysis_id:
             await progress_tracker.update(
                 analysis_id, 
                 "timeline", 
                 85, 
-                f"Analyzing {len(key_matches_to_analyze)} match timelines..."
+                f"Analyzing {len(key_matches_to_analyze)} matches in high detail..."
             )
 
+        match_lookup = {match['metadata']['matchId']: match for match in matches_data if match.get('metadata', {}).get('matchId')}
         deep_analysis_results: List[Dict[str, Any]] = []
-        timeline_tasks = []
+        summary_tasks = []
+        summary_indices: List[int] = []
+
         for match_info in key_matches_to_analyze:
-            timeline_tasks.append(
-                agent_tools.get_timeline_analysis_for_match(
-                    match_id=match_info['matchId'],
-                    puuid=puuid,
-                    player_champion=match_info['champion'],
-                    context_reason=match_info['context']
-                )
-            )
+            match_id = match_info.get('matchId')
+            match_data = match_lookup.get(match_id)
 
-        timeline_results = await asyncio.gather(*timeline_tasks, return_exceptions=True) if timeline_tasks else []
-
-        for i, result in enumerate(timeline_results):
-            if isinstance(result, Exception):
-                print(f"   ⚠️ Timeline analysis failed for match {key_matches_to_analyze[i]['matchId']}: {result}")
+            if not match_data:
+                print(f"   ⚠️ Skipping match {match_id}: detailed data not found")
                 continue
-            if result:
-                deep_analysis_results.append({
-                    "context": key_matches_to_analyze[i]['context'],
-                    "analysis": result
-                })
+
+            detailed_profile = agent_tools.build_match_deep_stats(match_data, puuid)
+            if not detailed_profile:
+                print(f"   ⚠️ Skipping match {match_id}: could not build stat profile")
+                continue
+
+            entry = {
+                "context": match_info.get('context', 'Key Match'),
+                "matchId": detailed_profile.get('matchId'),
+                "champion": detailed_profile['player'].get('champion'),
+                "result": detailed_profile.get('result'),
+                "durationMinutes": detailed_profile.get('durationMinutes'),
+                "statProfile": detailed_profile,
+                "summary": "",
+                "keyFactors": []
+            }
+
+            deep_analysis_results.append(entry)
+            summary_tasks.append(agent_tools.generate_match_summary_from_profile(detailed_profile, match_info.get('context', 'Key Match')))
+            summary_indices.append(len(deep_analysis_results) - 1)
+
+        summary_results = await asyncio.gather(*summary_tasks, return_exceptions=True) if summary_tasks else []
+
+        for index, result in zip(summary_indices, summary_results):
+            if isinstance(result, Exception):
+                print(f"   ⚠️ Match summary generation failed for match {deep_analysis_results[index]['matchId']}: {result}")
+                continue
+
+            if isinstance(result, dict):
+                deep_analysis_results[index]["summary"] = result.get("summary", "")
+                deep_analysis_results[index]["keyFactors"] = result.get("keyFactors", [])
+            else:
+                deep_analysis_results[index]["summary"] = str(result)
 
         # Step 4.3: Rename old Step 5 to Step 5
         print(f"\n🤖 Step 5/5: Generating AI insights with Claude Sonnet 4...")
@@ -244,6 +266,7 @@ async def generate_structured_analysis(
                 "highlights": ai_result['highlights'],
                 "aiInsight": ai_result['insight'],
                 "personality": ai_result['personality'],
+                "recommendedActions": ai_result.get('recommendedActions', []),
                 "rank": profile['rank']['display'],
                 "matchesAnalyzed": len(matches_data)
             }
@@ -375,7 +398,7 @@ async def _select_key_matches(
 
     # 3. Create prompt for Haiku
     prompt = f"""
-    You are a match analyst. Your goal is to select 3-5 key matches from a list for deeper timeline analysis.
+    You are a match analyst. Your goal is to select 3-5 key matches from a list for deeper stat-driven analysis.
     The player's top champions are: {', '.join(top_champs)}
     
     From the following list of matches, select:
@@ -450,8 +473,8 @@ AGGREGATE PERFORMANCE ("Wide" Data):
 - Playstyle: {playstyle.get('primary_trait', 'Unknown')}
 - Advanced Stats: {json.dumps(detailed_stats, indent=2)}
 
-DEEP DIVE TIMELINE ANALYSIS ("Deep" Data):
-{json.dumps(deep_analysis_results, indent=2) if deep_analysis_results else "No deep analysis available."}
+DETAILED MATCH BREAKDOWNS ("Deep" Data):
+{json.dumps(deep_analysis_results, indent=2, default=str) if deep_analysis_results else "No deep analysis available."}
 
 BENCHMARKS (for context):
 - {rank_info.get('tier', 'GOLD')} Average KDA: 2.8-3.2
@@ -459,16 +482,16 @@ BENCHMARKS (for context):
 - {rank_info.get('tier', 'GOLD')} Average Vision/min: 0.8-1.2
 
 YOUR TASK:
-Generate 3 Stat Highlights, 1 Deep Insight, and 1 Personality.
+Generate 3 Stat Highlights, 1 Deep Insight, 1 Personality, and 3 Recommended Actions.
 
 1.  **Select 3 Best Stat Highlights**: Choose from the "Wide" Data. Be specific with numbers.
 
 2.  **Write Deep AI Insight (4-5 sentences)**: This is the most important part.
-    -   **You MUST use the "Deep" Data.**
-    -   Find a connection between the "Wide" data and "Deep" data.
+        -   **You MUST use the "Deep" Data (match breakdown summaries, keyFactors, and statProfile).**
+        -   Find a connection between the "Wide" data and "Deep" data.
     -   Example: If "Wide" data shows a 30% WR on Vayne, and "Deep" data says "In this match, player died 3 times solo in the side lane," then your insight should be:
         "Your stats show you struggle on Vayne (30% WR), and we found a 'gameplay bug' that might be the cause: we analyzed a key loss and found a pattern of you getting caught farming solo in a side-lane post-20 minutes. Fixing this one habit could be the key to climbing."
-    -   Identify 1 critical weakness *with evidence from the timeline analysis*.
+    -   Identify 1 critical weakness *with evidence from the match breakdown analysis*.
     -   Provide 1 actionable improvement.
 
 3.  **Determine Personality**: Pick ONE that best fits:
@@ -479,10 +502,15 @@ Generate 3 Stat Highlights, 1 Deep Insight, and 1 Personality.
     - "Consistent Performer"
     - "Strategic Player"
 
+4.  **Recommend 3 Concrete Actions**:
+        - Anchor each action in either the aggregate stats or a specific match breakdown.
+        - Make each action a single sentence that starts with a verb ("Focus", "Practice", "Track", etc.).
+        - Avoid generic advice; include measurable targets (e.g. "raise vision to 1.2/min").
+
 IMPORTANT: 
 - No generic statements.
-- The "Deep AI Insight" MUST be based on the "Deep Dive Timeline Analysis". If that data is empty, just report on the aggregate stats.
-- Connect the timeline event to a broader pattern.
+- The "Deep AI Insight" MUST be based on the "Detailed Match Breakdowns". If that data is empty, just report on the aggregate stats.
+- Connect the match evidence to a broader pattern.
 
 RESPOND IN EXACT JSON FORMAT:
 {{
@@ -492,7 +520,8 @@ RESPOND IN EXACT JSON FORMAT:
     {{"stat": "descriptive title", "value": "number with unit"}}
   ],
   "insight": "your 4-5 sentence deep analysis here, using the deep dive data",
-  "personality": "chosen personality"
+    "personality": "chosen personality",
+    "recommendedActions": ["action one", "action two", "action three"]
 }}"""
     
     try:
@@ -528,6 +557,8 @@ RESPOND IN EXACT JSON FORMAT:
         json_match = re.search(r'\{[\s\S]*\}', ai_text)
         if json_match:
             ai_result = json.loads(json_match.group())
+            if isinstance(ai_result, dict) and 'recommendedActions' not in ai_result:
+                ai_result['recommendedActions'] = []
             print(f"   ✓ AI generated deep insights successfully")
             return ai_result
         else:
@@ -560,8 +591,29 @@ def _fallback_insights(performance: Dict[str, Any], playstyle: Dict[str, Any]) -
     while len(highlights) < 3:
         highlights.append({"stat": "Games Played", "value": str(performance.get('total_games', 0))})
     
+    recommended_actions: List[str] = []
+
+    avg_vision = performance.get('avg_vision_per_min', 0)
+    if avg_vision and avg_vision < 1.0:
+        recommended_actions.append(f"Aim for at least 1.0 vision score per minute by adding one extra control ward per game (current {avg_vision:.2f}).")
+
+    avg_cs = performance.get('avg_cs_per_min', 0)
+    if avg_cs and avg_cs < 6.0:
+        recommended_actions.append(f"Drill 10-minute laning scenarios to lift CS/min toward 6.5; you're averaging {avg_cs:.2f}.")
+
+    avg_deaths = performance.get('avg_deaths', 0)
+    if avg_deaths and avg_deaths > performance.get('avg_kills', 0):
+        recommended_actions.append(f"Review death timings to keep average deaths under {max(avg_deaths - 1, 3):.0f}; deaths currently at {avg_deaths:.1f} per game.")
+
+    if not recommended_actions:
+        recommended_actions.append("Track two replays per week to confirm if your macro habits match your ranked goals.")
+
+    while len(recommended_actions) < 3:
+        recommended_actions.append("Focus objective setups by pinging timers and grouping 45 seconds earlier than usual.")
+
     return {
         "highlights": highlights[:3],
         "insight": f"{playstyle.get('primary_trait', 'Player')} with {kda:.1f} KDA across {performance.get('total_games', 0)} games. Focus on consistency and reducing deaths to climb further.",
-        "personality": playstyle.get('primary_trait', 'Consistent Performer')
+        "personality": playstyle.get('primary_trait', 'Consistent Performer'),
+        "recommendedActions": recommended_actions[:3]
     }

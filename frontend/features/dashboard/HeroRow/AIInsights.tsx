@@ -10,15 +10,17 @@ import { GlassCard } from "@/components/ui/GlassCard"
 interface AIInsightsProps {
   insight: string
   personality: string
+  actions?: string[]
 }
 
-export function AIInsights({ insight, personality }: AIInsightsProps) {
-  // Split insight into main text and bullet points if present
-  const suggestions = [
-    "Focus on objective control during mid-game",
-    "Improve vision placement in enemy jungle",
-    "Practice wave management for better recalls",
-  ]
+export function AIInsights({ insight, personality, actions = [] }: AIInsightsProps) {
+  const suggestions = actions.length > 0
+    ? actions
+    : [
+        "Focus on objective control during mid-game",
+        "Improve vision placement in enemy jungle",
+        "Practice wave management for better recalls",
+      ]
 
   return (
     <motion.div
@@ -36,13 +38,13 @@ export function AIInsights({ insight, personality }: AIInsightsProps) {
           AI INSIGHTS
         </div>
 
-        <h3 className="text-2xl font-bold text-white">{personality}</h3>
+  <h3 className="text-3xl font-bold text-white">{personality}</h3>
 
-        <p className="mt-4 text-base leading-relaxed text-muted-foreground">{insight}</p>
+  <p className="mt-4 text-lg leading-relaxed text-muted-foreground">{insight}</p>
 
         {/* Action suggestions */}
         <div className="mt-6 space-y-3">
-          <p className="text-sm font-semibold text-white">Recommended Actions:</p>
+          <p className="text-base font-semibold text-white">Recommended Actions:</p>
           {suggestions.map((suggestion, index) => (
             <motion.div
               key={index}
@@ -51,8 +53,8 @@ export function AIInsights({ insight, personality }: AIInsightsProps) {
               transition={{ delay: 0.6 + index * 0.1 }}
               className="flex items-start gap-3"
             >
-              <div className="mt-1 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-accent" />
-              <p className="text-sm text-muted-foreground">{suggestion}</p>
+              <div className="mt-2 h-2 w-2 flex-shrink-0 rounded-full bg-accent" />
+              <p className="text-base text-muted-foreground">{suggestion}</p>
             </motion.div>
           ))}
         </div>

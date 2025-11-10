@@ -79,9 +79,11 @@ export function LandingContainer() {
           displayName: analysis.displayName,
           profilePicture: analysis.profilePicture,
           mainRole: analysis.mainRole,
+          rank: analysis.rank,
           topChampions: analysis.topChampions,
           highlights: analysis.highlights,
           aiInsight: analysis.aiInsight,
+          recommendedActions: analysis.recommendedActions ?? [],
           personality: analysis.personality,
           progress: {
             season: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],

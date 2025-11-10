@@ -2,7 +2,8 @@
 
 import { cn } from "@/lib/utils"
 import Image from "next/image"
-import { getAvatarUrl, getRankInitial } from "@/lib/avatar-utils"
+import { getAvatarUrl } from "@/lib/avatar-utils"
+import { getRankIconDataUri, getRankTierLabel } from "@/lib/rank-utils"
 
 interface PlayerAvatarProps {
   src: string
@@ -24,11 +25,12 @@ export function PlayerAvatar({
   alt,
   size = "md",
   showRankBadge = false,
-  rank = "Platinum",
+  rank = "Unranked",
   className,
 }: PlayerAvatarProps) {
   const avatarUrl = getAvatarUrl(src)
-  const rankInitial = getRankInitial(rank)
+  const rankIcon = getRankIconDataUri(rank)
+  const rankLabel = getRankTierLabel(rank)
 
   return (
     <div className={cn("relative inline-block", className)}>
@@ -43,11 +45,17 @@ export function PlayerAvatar({
       </div>
       {showRankBadge && (
         <div
-          className="absolute bottom-0 right-0 flex h-5 w-5 items-center justify-center rounded-full border-2 border-background bg-accent text-[10px] font-bold text-background"
+          className="absolute -bottom-1 -right-1 flex h-7 w-7 items-center justify-center rounded-full border-2 border-background bg-background/60 backdrop-blur"
           aria-label={`Rank: ${rank}`}
           title={rank}
         >
-          {rankInitial}
+          <Image
+            src={rankIcon}
+            alt={`${rankLabel} rank emblem`}
+            width={24}
+            height={24}
+            className="h-6 w-6"
+          />
         </div>
       )}
     </div>

@@ -30,9 +30,11 @@ export interface PlayerData {
   displayName: string
   profilePicture: string
   mainRole: string
+  rank: string
   topChampions: Champion[]
   highlights: Highlight[]
   aiInsight: string
+  recommendedActions: string[]
   progress: Progress
   personality: string
   seasonMonths: string[]

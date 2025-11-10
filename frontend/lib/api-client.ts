@@ -44,6 +44,7 @@ export interface AnalysisResponse {
     }>
     aiInsight: string
     personality: string
+    recommendedActions: string[]
     rank: string
     matchesAnalyzed: number
   }

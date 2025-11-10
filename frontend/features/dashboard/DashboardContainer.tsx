@@ -8,7 +8,6 @@ import { ChampionSpotlight } from "./HeroRow/ChampionSpotlight"
 import { StatHighlights } from "./HeroRow/StatHighlights"
 import { AIInsights } from "./HeroRow/AIInsights"
 import { RoleBadge } from "./MiniWidgets/RoleBadge"
-import { SeasonTrendContainer } from "./Charts/SeasonTrendContainer"
 import { Button } from "@/components/ui/button"
 import { PlayerIdentity } from "@/components/ui/PlayerIdentity"
 import { PersonaVignette } from "@/components/ui/PersonaVignette"
@@ -47,6 +46,7 @@ export function DashboardContainer() {
               displayName={playerData.displayName}
               profilePicture={playerData.profilePicture}
               mainRole={playerData.mainRole}
+              rank={playerData.rank}
               size="lg"
               showRole={false}
             />
@@ -100,20 +100,11 @@ export function DashboardContainer() {
           >
             🤖 AI Analysis
           </motion.h2>
-          <AIInsights insight={playerData.aiInsight} personality={playerData.personality} />
-        </section>
-
-        {/* Season Performance Trends - Interactive rank progression chart */}
-        <section className="mb-8">
-          <motion.h2
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.4 }}
-            className="mb-6 text-3xl font-bold text-white"
-          >
-            📈 Season Performance Trends
-          </motion.h2>
-          <SeasonTrendContainer />
+          <AIInsights
+            insight={playerData.aiInsight}
+            personality={playerData.personality}
+            actions={playerData.recommendedActions}
+          />
         </section>
       </div>
     </>

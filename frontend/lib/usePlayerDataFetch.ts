@@ -41,9 +41,11 @@ export async function fetchPlayerData(riotId: string): Promise<PlayerData | null
       displayName: analysis.displayName,
       profilePicture: analysis.profilePicture,
       mainRole: analysis.mainRole,
+  rank: analysis.rank,
       topChampions: analysis.topChampions,
       highlights: analysis.highlights,
       aiInsight: analysis.aiInsight,
+  recommendedActions: analysis.recommendedActions ?? [],
       personality: analysis.personality,
       // Progress data (mock for now until we implement growth charts)
       progress: {

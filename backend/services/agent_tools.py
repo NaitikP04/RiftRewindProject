@@ -9,6 +9,7 @@ import pandas as pd
 import httpx
 import os
 import json
+import re
 import boto3
 from dotenv import load_dotenv
 from langchain_aws import ChatBedrock
@@ -376,7 +377,298 @@ async def _fetch_match_with_retry(match_id: str) -> Optional[Dict]:
     return None
 
 
-# ========== DATA ANALYSIS ==========
+# ========== DATA ANALYSIS ========== 
+
+
+def _safe_percentage(part: float, total: float) -> float:
+    """Compute a percentage while avoiding divide-by-zero."""
+    if not total:
+        return 0.0
+    return round((part / total) * 100, 1)
+
+
+def _collect_relevant_challenges(challenges: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract a focused subset of challenge metrics useful for deep analysis."""
+    if not challenges:
+        return {}
+
+    relevant_keys = [
+        "killParticipation",
+        "damagePerMinute",
+        "damageTakenOnTeamPercentage",
+        "goldPerMinute",
+        "csPerMin",
+        "csDiffPerMin15",
+        "xpDiffPerMin15",
+        "goldDiffPerMin15",
+        "visionScoreAdvantageLaneOpponent",
+        "visionScorePerMinute",
+        "controlWardsPlaced",
+        "stealthWardsPlaced",
+        "takedownsFirst25Minutes",
+        "soloKills",
+        "scuttleCrabKills",
+        "dragonTakedowns",
+        "baronTakedowns",
+        "turretTakedowns",
+        "inhibitorTakedowns",
+        "skillshotsHit",
+        "skillshotsDodged",
+        "snowballsHit",
+    ]
+
+    extracted: Dict[str, Any] = {}
+
+    for key in relevant_keys:
+        value = challenges.get(key)
+        if value is None:
+            continue
+        if isinstance(value, (int, float)):
+            if abs(value) < 1e-6:
+                continue
+            extracted[key] = round(value, 2)
+        else:
+            extracted[key] = value
+
+    return extracted
+
+
+def build_match_deep_stats(match_data: Dict[str, Any], puuid: str) -> Optional[Dict[str, Any]]:
+    """Build a detailed profile of a single match using general stats."""
+    info = match_data.get('info', {})
+    participants = info.get('participants', [])
+    player = next((p for p in participants if p.get('puuid') == puuid), None)
+
+    if not player:
+        return None
+
+    metadata = match_data.get('metadata', {})
+    match_id = metadata.get('matchId', 'unknown')
+    duration_seconds = info.get('gameDuration', 0)
+    duration_minutes = max(round(duration_seconds / 60, 1), 1.0)
+
+    team_id = player.get('teamId')
+    team_participants = [p for p in participants if p.get('teamId') == team_id]
+    opponent_participants = [p for p in participants if p.get('teamId') != team_id]
+
+    team_kills = sum(p.get('kills', 0) for p in team_participants)
+    team_deaths = sum(p.get('deaths', 0) for p in team_participants)
+    team_assists = sum(p.get('assists', 0) for p in team_participants)
+    team_damage = sum(p.get('totalDamageDealtToChampions', 0) for p in team_participants)
+    team_objective_damage = sum(p.get('damageDealtToObjectives', 0) for p in team_participants)
+    team_gold = sum(p.get('goldEarned', 0) for p in team_participants)
+    team_vision = sum(p.get('visionScore', 0) for p in team_participants)
+
+    lane_position = player.get('teamPosition', 'UNKNOWN')
+    lane_opponent = next(
+        (p for p in opponent_participants if p.get('teamPosition') == lane_position and p.get('teamPosition') != 'UTILITY'),
+        None
+    )
+    if lane_opponent is None:
+        lane_opponent = next(
+            (p for p in opponent_participants if p.get('teamPosition') == lane_position),
+            None
+        )
+
+    player_cs_total = player.get('totalMinionsKilled', 0) + player.get('neutralMinionsKilled', 0)
+    challenges = player.get('challenges', {})
+
+    lane_opponent_profile = None
+    if lane_opponent:
+        opp_challenges = lane_opponent.get('challenges', {})
+        opp_cs_total = lane_opponent.get('totalMinionsKilled', 0) + lane_opponent.get('neutralMinionsKilled', 0)
+        lane_opponent_profile = {
+            'champion': lane_opponent.get('championName'),
+            'kills': lane_opponent.get('kills', 0),
+            'deaths': lane_opponent.get('deaths', 0),
+            'assists': lane_opponent.get('assists', 0),
+            'kda': round((lane_opponent.get('kills', 0) + lane_opponent.get('assists', 0)) / max(lane_opponent.get('deaths', 0), 1), 2),
+            'csTotal': opp_cs_total,
+            'csPerMinute': round(opp_cs_total / duration_minutes, 2),
+            'damageToChamps': lane_opponent.get('totalDamageDealtToChampions', 0),
+            'damageSharePct': round(opp_challenges.get('teamDamagePercentage', 0) * 100, 1) if opp_challenges.get('teamDamagePercentage') is not None else _safe_percentage(lane_opponent.get('totalDamageDealtToChampions', 0), team_damage),
+            'visionScore': lane_opponent.get('visionScore', 0),
+            'visionPerMinute': round(lane_opponent.get('visionScore', 0) / duration_minutes, 2),
+            'goldEarned': lane_opponent.get('goldEarned', 0),
+            'goldPerMinute': round(lane_opponent.get('goldEarned', 0) / duration_minutes, 1),
+            'killParticipationPct': round((lane_opponent.get('kills', 0) + lane_opponent.get('assists', 0)) / max(sum(p.get('kills', 0) for p in opponent_participants), 1) * 100, 1),
+        }
+
+    player_kills = player.get('kills', 0)
+    player_deaths = player.get('deaths', 0)
+    player_assists = player.get('assists', 0)
+
+    detailed_profile = {
+        'matchId': match_id,
+        'queueId': info.get('queueId'),
+        'gameMode': info.get('gameMode'),
+        'result': 'Win' if player.get('win') else 'Loss',
+        'durationMinutes': duration_minutes,
+        'player': {
+            'champion': player.get('championName'),
+            'role': lane_position,
+            'kills': player_kills,
+            'deaths': player_deaths,
+            'assists': player_assists,
+            'kda': round((player_kills + player_assists) / max(player_deaths, 1), 2),
+            'killParticipationPct': round((player_kills + player_assists) / max(team_kills, 1) * 100, 1),
+            'damageToChamps': player.get('totalDamageDealtToChampions', 0),
+            'damagePerMinute': round(player.get('totalDamageDealtToChampions', 0) / duration_minutes, 1),
+            'damageSharePct': round(challenges.get('teamDamagePercentage', 0) * 100, 1) if challenges.get('teamDamagePercentage') is not None else _safe_percentage(player.get('totalDamageDealtToChampions', 0), team_damage),
+            'damageTaken': player.get('totalDamageTaken', 0),
+            'damageSelfMitigated': player.get('damageSelfMitigated', 0),
+            'goldEarned': player.get('goldEarned', 0),
+            'goldPerMinute': round(player.get('goldEarned', 0) / duration_minutes, 1),
+            'csTotal': player_cs_total,
+            'csPerMinute': round(player_cs_total / duration_minutes, 2),
+            'visionScore': player.get('visionScore', 0),
+            'visionPerMinute': round(player.get('visionScore', 0) / duration_minutes, 2),
+            'controlWards': challenges.get('controlWardsBought', player.get('visionWardsBoughtInGame', 0)),
+            'wardsPlaced': challenges.get('stealthWardsPlaced', player.get('wardsPlaced', 0)),
+            'wardsKilled': challenges.get('wardTakedowns', player.get('wardsKilled', 0)),
+            'objectiveDamage': player.get('damageDealtToObjectives', 0),
+            'turretTakedowns': player.get('turretTakedowns', 0),
+            'inhibitorTakedowns': player.get('inhibitorTakedowns', 0),
+            'soloKills': challenges.get('soloKills', player.get('soloKills', 0)),
+            'multiKills': {
+                'double': player.get('doubleKills', 0),
+                'triple': player.get('tripleKills', 0),
+                'quadra': player.get('quadraKills', 0),
+                'penta': player.get('pentaKills', 0),
+            },
+            'largestKillingSpree': player.get('largestKillingSpree', 0),
+            'timeCCingOthers': player.get('timeCCingOthers', 0),
+        },
+        'team': {
+            'kills': team_kills,
+            'deaths': team_deaths,
+            'assists': team_assists,
+            'damageToChamps': team_damage,
+            'objectiveDamage': team_objective_damage,
+            'goldEarned': team_gold,
+            'visionScore': team_vision,
+        },
+        'laneOpponent': lane_opponent_profile,
+        'challenges': _collect_relevant_challenges(challenges),
+    }
+
+    return detailed_profile
+
+
+async def generate_match_summary_from_profile(match_profile: Dict[str, Any], context_reason: str) -> Dict[str, Any]:
+    """Summarize a single match using the lightweight LLM and general stats."""
+    if not haiku_llm:
+        player_block = match_profile['player']
+        summary = (
+            f"{player_block['champion']} went {player_block['kills']}/{player_block['deaths']}/{player_block['assists']} "
+            f"with {player_block['killParticipationPct']:.1f}% kill participation in a {match_profile['result'].lower()} "
+            f"lasting {match_profile['durationMinutes']} minutes."
+        )
+        key_factors = [
+            f"Damage share: {player_block['damageSharePct']:.1f}%",
+            f"Vision score/min: {player_block['visionPerMinute']:.2f}",
+        ]
+        return {"summary": summary, "keyFactors": key_factors}
+
+    player_stats = json.dumps(match_profile['player'], default=str, indent=2)
+    team_stats = json.dumps(match_profile['team'], default=str, indent=2)
+    opponent_stats = json.dumps(match_profile.get('laneOpponent') or {}, default=str, indent=2)
+    challenge_stats = json.dumps(match_profile.get('challenges') or {}, default=str, indent=2)
+
+    prompt = f"""
+You are a League of Legends analyst. Create a concise 2-3 sentence summary explaining why this match was flagged as "{context_reason}".
+Ground all claims in the numbers provided. Highlight one standout strength and one concrete weakness.
+
+MATCH OVERVIEW:
+- Result: {match_profile['result']}
+- Duration: {match_profile['durationMinutes']} minutes
+- Champion: {match_profile['player']['champion']} playing {match_profile['player']['role']}
+
+PLAYER STATS:
+{player_stats}
+
+TEAM CONTEXT:
+{team_stats}
+
+LANE OPPONENT SNAPSHOT:
+{opponent_stats}
+
+ADDITIONAL METRICS:
+{challenge_stats}
+
+Respond ONLY in JSON format:
+{{
+  "summary": "two or three sentences tying the numbers together",
+  "keyFactors": ["short fact", "short fact"]
+}}
+"""
+
+    try:
+        await bedrock_rate_limiter.wait_if_needed(is_retry=False)
+        bedrock_rate_limiter.record_request(success=False)
+
+        response = await haiku_llm.ainvoke(prompt)
+        raw_content = response.content
+
+        if isinstance(raw_content, list):
+            content = ''.join(
+                getattr(part, 'text', str(part))
+                for part in raw_content
+            )
+        else:
+            content = str(raw_content)
+
+        try:
+            result = json.loads(content)
+        except json.JSONDecodeError:
+            # Try to recover JSON payload if model added commentary
+            json_candidate = None
+            match = re.search(r'\{[\s\S]*\}', content)
+            if match:
+                json_candidate = match.group(0)
+
+            if json_candidate:
+                try:
+                    result = json.loads(json_candidate)
+                except json.JSONDecodeError as json_err:
+                    raise ValueError(f"Match summary response not valid JSON: {json_err}") from json_err
+            else:
+                raise ValueError("Match summary response did not contain a JSON object")
+        if not isinstance(result, dict):
+            raise ValueError("Match summary response is not a dict")
+
+        summary = result.get('summary', '').strip()
+        key_factors = result.get('keyFactors', [])
+
+        if isinstance(key_factors, str):
+            key_factors = [key_factors]
+
+        bedrock_rate_limiter.record_request(success=True)
+
+        return {
+            'summary': summary,
+            'keyFactors': key_factors,
+        }
+
+    except Exception as exc:
+        print(f"   [Deep Dive] Match stat summary failed: {exc}")
+        bedrock_rate_limiter.record_request(success=False)
+
+        fallback_player = match_profile['player']
+        fallback_summary = (
+            f"{fallback_player['champion']} posted {fallback_player['kills']}/{fallback_player['deaths']}/{fallback_player['assists']} "
+            f"for {fallback_player['damageSharePct']:.1f}% team damage in this {match_profile['result'].lower()}."
+        )
+        fallback_factors = [
+            f"Kill participation: {fallback_player['killParticipationPct']:.1f}%",
+            f"Vision per minute: {fallback_player['visionPerMinute']:.2f}",
+        ]
+
+        return {
+            'summary': fallback_summary,
+            'keyFactors': fallback_factors,
+        }
+
 
 def extract_comprehensive_player_data(match_data: Dict, puuid: str) -> Optional[Dict]:
     """Extract all relevant player stats from match."""

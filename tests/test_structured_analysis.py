@@ -63,6 +63,12 @@ async def test_structured_analysis():
         print(f"\n🤖 AI INSIGHT (Claude Sonnet 4):")
         print(f"   {data['aiInsight']}")
         
+        actions = data.get('recommendedActions', [])
+        if actions:
+            print(f"\n🛠 RECOMMENDED ACTIONS:")
+            for action in actions:
+                print(f"   - {action}")
+
         print(f"\n🎭 PERSONALITY:")
         print(f"   {data['personality']}")
         
