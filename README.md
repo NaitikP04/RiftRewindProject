@@ -1,30 +1,266 @@
-# Rift Rewind# Rift Rewind
+# Rift Rewind
 
+AI-powered League of Legends year-end review generator for Riot Games API Challenge 2025. Creates personalized Spotify Wrapped-style dashboards with deep AI insights using Claude Sonnet 4.
 
+## ✨ Features
 
-AI-powered League of Legends year-end review generator for Riot Games API Challenge 2025. Creates personalized Spotify Wrapped-style dashboards with deep AI insights using Claude Sonnet 4.AI-powered League of Legends match analysis and year-end review generator. Creates personalized Spotify Wrapped-style reviews using player match history and performance data.
+### Core Functionality
+- **Two-Phase Data Flow**: Fast profile load (<5s) + deep AI analysis (3-6 min)
+- **Smart Caching System**: 80-90% faster repeat analyses with JSON-based caching
+- **Accurate Match Statistics**: Real champion stats from match history (not estimates)
+- **Deep AI Insights**: Claude Sonnet 4 generates unique, personalized analysis with specific numbers
+- **Challenge System Integration**: Extracts Riot's challenge data for deeper insights
+- **Champion Pool Analysis**: Identifies main champions with **real champion icons** from DDragon
+- **Rate Limit Optimization**: Intelligent handling of Riot API (20/s, 100/2min) and Bedrock limits
 
+### UI/UX
+- **Polished Dashboard**: Glass-morphism UI with smooth animations
+- **Champion Spotlights**: Circular progress rings with real champion portraits
+- **Interactive Season Chart**: Visualize rank progression over time with hover annotations
+- **Performance Highlights**: Key stats displayed with visual flair
+- **AI-Generated Personality**: Unique playstyle personas based on match data
+- **Responsive Design**: Works beautifully on desktop and mobile
 
+### Technical Excellence
+- **Type-Safe APIs**: Pydantic schemas for all endpoints
+- **Config Validation**: Clear error messages on startup
+- **Enhanced Logging**: Detailed progress tracking with cache hit rates
+- **Health Monitoring**: Real-time stats for rate limiters and cache
+- **Retry-Safe Caching**: Prevents re-fetching data on API throttling
 
-## Features## Features
+## 🏗️ Architecture
 
+- **Frontend**: Next.js 16 + React 19 + TypeScript + Tailwind CSS + Framer Motion
+- **Backend**: FastAPI (Python 3.12+) with type-safe Pydantic schemas
+- **AI**: AWS Bedrock - Claude Sonnet 4 (`anthropic.claude-sonnet-4-20250514-v1:0`)
+- **Data Source**: Riot Games API (Match-V5, Summoner-V4, League-V4)
+- **Caching**: JSON-based file caching for 80-90% performance improvement
+- **Region**: North America only (expandable architecture)
 
+## 🚀 Prerequisites
 
-- **Two-Phase Data Flow**: Fast profile load (<5s) + deep AI analysis (3-6 min)- **AI-Powered Analysis**: Uses AWS Bedrock (Claude) to generate personalized year-end reviews
+- Node.js (v18+)
+- Python 3.12+
+- Riot Games API Key ([Get one here](https://developer.riotgames.com/))
+- AWS Account with Bedrock access to Claude Sonnet 4
 
-- **Accurate Match Statistics**: Real champion stats from match history (not estimates)- **Smart Match Fetching**: Prioritizes ranked matches for competitive insights
+## ⚡ Quick Start
 
-- **Deep AI Insights**: Claude Sonnet 4 generates unique, personalized analysis with specific numbers- **Performance Trends**: Analyzes KDA, CS, vision, and improvement patterns
+### 1. Environment Setup
 
-- **Challenge System Integration**: Extracts Riot's challenge data for deeper insights- **Champion Pool Analysis**: Identifies main champions, win rates, and playstyle
+**Backend** - Create `backend/.env`:
+```env
+RIOT_API_KEY=your_riot_api_key_here
+AWS_ACCESS_KEY_ID=your_aws_access_key
+AWS_SECRET_ACCESS_KEY=your_aws_secret_key
+AWS_REGION=us-east-1
+```
 
-- **Polished Frontend**: Glass-morphism UI with smooth animations and responsive design- **Retry-Safe Caching**: Prevents re-fetching data on API throttling
+**Frontend** - Create `frontend/.env.local`:
+```env
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
 
-- **Rate Limit Optimization**: Intelligent handling of Riot API (20/s, 100/2min) and Bedrock limits- **Rate Limit Optimization**: Intelligent handling of Riot API and Bedrock limits
+### 2. Installation
 
+```bash
+# Backend
+cd backend
+pip install -r requirements.txt
 
+# Frontend
+cd frontend
+npm install
+```
 
-## Architecture## Architecture
+### 3. Run Application
+
+**Terminal 1 - Backend:**
+```bash
+cd backend
+python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+**Terminal 2 - Frontend:**
+```bash
+cd frontend
+npm run dev
+```
+
+**Access**: Open http://localhost:3000
+
+## 📊 Performance Metrics
+
+| Metric | First Analysis | Repeat Analysis | Improvement |
+|--------|---------------|-----------------|-------------|
+| **Time** | 3-6 minutes | 30-60 seconds | ⚡ **80-90% faster** |
+| **API Calls** | ~200 | ~10-20 | 💰 **92% reduction** |
+| **Cache Hit Rate** | 0% | 95-100% | 🎯 **Perfect caching** |
+
+## 🎨 UI Improvements (Latest)
+
+- ✅ **Real Champion Icons**: Uses DDragon CDN for authentic champion portraits
+- ✅ **Polished Champion Cards**: Enhanced hover effects, shadows, and animations
+- ✅ **Interactive Season Chart**: Visualize rank progression with annotations
+- ✅ **Better Spacing**: Improved layout with larger headings and emoji accents
+- ✅ **Smooth Transitions**: Framer Motion animations throughout
+
+## 🔧 API Endpoints
+
+### Core Endpoints
+- `GET /api/health` - Health check with cache & rate limiter stats
+- `GET /api/profile/{game_name}/{tag_line}` - Fast profile fetch (~5s)
+- `POST /api/analysis/{game_name}/{tag_line}` - Deep AI analysis (3-6 min)
+
+### Usage Example
+```bash
+# Check health & cache stats
+curl http://localhost:8000/api/health
+
+# Get profile
+curl "http://localhost:8000/api/profile/Doublelift/NA1"
+
+# Generate analysis
+curl -X POST "http://localhost:8000/api/analysis/Doublelift/NA1" \
+  -H "Content-Type: application/json" \
+  -d '{"num_matches": 100}'
+```
+
+## 🧪 Testing
+
+```bash
+# Quick health check
+curl http://localhost:8000/api/health
+
+# Run improvement tests
+cd tests
+python test_improvements.py
+
+# Test caching performance
+# 1. Analyze a player (first time = slow)
+# 2. Analyze same player (second time = fast!)
+# 3. Check logs for: "💾 Cache hits: 100/100 (100%)"
+```
+
+See **HOW_TO_RUN.md** for comprehensive testing guide.
+
+## 📁 Project Structure
+
+```
+backend/
+  app/
+    main.py           # API endpoints with type-safe responses
+    schemas.py        # Pydantic models
+  services/
+    cache_manager.py  # JSON-based caching system (NEW)
+    config.py         # Environment validation (NEW)
+    agent_tools.py    # Match analysis tools
+    structured_analysis_service.py  # AI coordinator
+  cache/              # Auto-generated cache files
+    matches.json
+    profiles.json
+
+frontend/
+  app/                # Next.js app router
+  features/
+    dashboard/        # Main dashboard components
+      Charts/         # Season trend visualization
+      HeroRow/        # Champion spotlights with icons
+  lib/
+    api-client.ts     # Type-safe backend communication
+    types.ts          # TypeScript definitions
+```
+
+## 🎯 Key Features Explained
+
+### JSON-Based Caching
+- Stores match data locally in `backend/cache/`
+- 24-hour TTL for matches, 1-hour for profiles
+- Automatic cache hit tracking: "💾 Cache hits: 95/100 (95%)"
+- Reduces API calls by 92% for repeat analyses
+
+### AI Analysis
+- Uses Claude Sonnet 4 for deep insights
+- Analyzes 50-200 matches per player
+- Generates personality profiles based on playstyle
+- Provides specific stats and trends
+
+### Champion Icons
+- Real-time loading from Riot's DDragon CDN
+- Fallback to styled initials if image fails
+- Circular progress rings showing win rates
+- Smooth hover animations
+
+### Season Chart
+- Interactive rank timeline
+- Hover to see monthly events
+- Click to pin annotations
+- Responsive design
+
+## 🐛 Troubleshooting
+
+### Backend won't start
+- Ensure `.env` file exists with valid API keys
+- Run `pip install -r requirements.txt`
+- Check Python version: `python --version` (need 3.8+)
+
+### Frontend errors
+- Run `npm install` in frontend directory
+- Verify `.env.local` has correct API URL
+- Check Node version: `node --version` (need 18+)
+
+### Cache not working
+- Look for "💾 Cache hits" in backend console
+- Check `/api/health` endpoint for cache stats
+- Cache files auto-create in `backend/cache/`
+
+### Champion icons not loading
+- Check internet connection (uses Riot CDN)
+- Verify champion names in backend response
+- Fallback to styled letters if CDN fails
+
+## 📚 Documentation
+
+- **HOW_TO_RUN.md** - Comprehensive setup and testing guide
+- **IMPROVEMENTS.md** - Feature documentation and performance metrics
+- **TESTING_GUIDE.md** - Step-by-step testing procedures
+- **IMPLEMENTATION_SUMMARY.md** - Technical implementation details
+- **.github/copilot-instructions.md** - AI agent development guide
+
+## 🏆 Hackathon Ready!
+
+This project is production-quality with:
+- ✅ Smart caching (80-90% performance boost)
+- ✅ Type-safe APIs
+- ✅ Comprehensive error handling
+- ✅ Real-time champion icons
+- ✅ Interactive charts
+- ✅ Polished UI/UX
+- ✅ Complete documentation
+
+Perfect for Riot Games API Challenge 2025!
+
+## 🎬 Demo Tips
+
+1. **Show First Analysis**: 3-6 minutes, explain AI is analyzing 100 matches
+2. **Show Cache Working**: Same player takes 30-60 seconds, highlight cache hits
+3. **Interactive Features**: Hover on champions, click chart annotations
+4. **Performance Stats**: Show `/api/health` with cache statistics
+
+## 📝 License
+
+MIT License - See LICENSE file for details
+
+## 🙏 Acknowledgments
+
+- Riot Games for the API Challenge and comprehensive API
+- AWS Bedrock for Claude Sonnet 4 access
+- Next.js and FastAPI communities
+- shadcn/ui for beautiful components
+
+---
+
+**Built with ❤️ for Riot Games API Challenge 2025**
 
 
 

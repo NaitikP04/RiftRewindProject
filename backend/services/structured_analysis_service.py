@@ -14,6 +14,7 @@ from langchain_aws import ChatBedrock
 from . import agent_tools, profile_service
 from .rate_limiter import rate_limiter
 from .bedrock_rate_limiter import bedrock_rate_limiter
+from .progress_tracker import progress_tracker
 
 RIOT_API_KEY = os.getenv("RIOT_API_KEY")
 HEADERS = {"X-Riot-Token": RIOT_API_KEY}
@@ -51,7 +52,8 @@ if haiku_llm is None:
 async def generate_structured_analysis(
     game_name: str,
     tag_line: str,
-    num_matches: int = 100
+    num_matches: int = 100,
+    analysis_id: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Generate complete structured analysis for frontend dashboard.
@@ -66,9 +68,19 @@ async def generate_structured_analysis(
         
         # Step 1: Get profile data
         print("📋 Step 1/5: Fetching profile...")
+        if analysis_id:
+            await progress_tracker.update(
+                analysis_id, 
+                "profile", 
+                10, 
+                f"Loading profile for {game_name}#{tag_line}..."
+            )
+        
         profile_result = await profile_service.get_player_profile(game_name, tag_line)
         
         if not profile_result.get('success'):
+            if analysis_id:
+                await progress_tracker.update(analysis_id, "error", 0, f"Failed to load profile: {profile_result.get('error', 'Unknown error')}")
             return profile_result
         
         profile = profile_result['profile']
@@ -76,6 +88,14 @@ async def generate_structured_analysis(
         
         # Step 2: Fetch comprehensive match history
         print(f"\n📥 Step 2/5: Fetching match history...")
+        if analysis_id:
+            await progress_tracker.update(
+                analysis_id, 
+                "matches", 
+                25, 
+                f"Finding {num_matches} recent matches..."
+            )
+        
         match_ids, metadata = await agent_tools.fetch_matches_intelligently(
             puuid=puuid,
             target_matches=num_matches,
@@ -83,21 +103,40 @@ async def generate_structured_analysis(
         )
         
         if not match_ids:
+            if analysis_id:
+                await progress_tracker.update(analysis_id, "error", 0, "No recent matches found")
             return {"success": False, "error": "No recent matches found"}
         
         print(f"   Found {len(match_ids)} matches to analyze")
         
         # Step 3: Get detailed match data
         print(f"\n📊 Step 3/5: Analyzing match details...")
+        if analysis_id:
+            await progress_tracker.update(
+                analysis_id, 
+                "details", 
+                50, 
+                f"Analyzing {len(match_ids)} match details..."
+            )
+        
         matches_data = await agent_tools.get_match_details_batch(match_ids)
         
         if not matches_data:
+            if analysis_id:
+                await progress_tracker.update(analysis_id, "error", 0, "Failed to fetch match details")
             return {"success": False, "error": "Failed to fetch match details"}
         
         print(f"   Successfully analyzed {len(matches_data)} matches")
         
         # Step 4: Calculate comprehensive performance metrics
         print(f"\n🔢 Step 4/5: Calculating detailed statistics...")
+        if analysis_id:
+            await progress_tracker.update(
+                analysis_id, 
+                "statistics", 
+                75, 
+                "Calculating performance trends and champion stats..."
+            )
         performance = agent_tools.calculate_performance_trends(matches_data, puuid)
         champion_pool = agent_tools.analyze_champion_pool(matches_data, puuid)
         playstyle = agent_tools.identify_playstyle_personality(matches_data, puuid)
@@ -112,7 +151,14 @@ async def generate_structured_analysis(
         # ========== NEW: DEEP DIVE ANALYSIS (STEPS 4.1 - 4.3) ==========
 
         # Step 4.1: Use AI (Haiku) to select 3 key matches
-        print(f"\n� Step 4.1/5: Selecting key matches for deep dive...")
+        print(f"\n🔍 Step 4.1/5: Selecting key matches for deep dive...")
+        if analysis_id:
+            await progress_tracker.update(
+                analysis_id, 
+                "deep_dive", 
+                80, 
+                "Selecting key matches for timeline analysis..."
+            )
 
         key_matches_to_analyze = await _select_key_matches(
             matches_data=matches_data,
@@ -124,6 +170,13 @@ async def generate_structured_analysis(
 
         # Step 4.2: Fetch and analyze timeline data for *only* those key matches
         print(f"\n🔎 Step 4.2/5: Performing deep dive timeline analysis...")
+        if analysis_id:
+            await progress_tracker.update(
+                analysis_id, 
+                "timeline", 
+                85, 
+                f"Analyzing {len(key_matches_to_analyze)} match timelines..."
+            )
 
         deep_analysis_results: List[Dict[str, Any]] = []
         timeline_tasks = []
@@ -137,17 +190,27 @@ async def generate_structured_analysis(
                 )
             )
 
-        timeline_results = await asyncio.gather(*timeline_tasks) if timeline_tasks else []
+        timeline_results = await asyncio.gather(*timeline_tasks, return_exceptions=True) if timeline_tasks else []
 
-        for i, analysis_text in enumerate(timeline_results):
-            if analysis_text:
+        for i, result in enumerate(timeline_results):
+            if isinstance(result, Exception):
+                print(f"   ⚠️ Timeline analysis failed for match {key_matches_to_analyze[i]['matchId']}: {result}")
+                continue
+            if result:
                 deep_analysis_results.append({
                     "context": key_matches_to_analyze[i]['context'],
-                    "analysis": analysis_text
+                    "analysis": result
                 })
 
         # Step 4.3: Rename old Step 5 to Step 5
         print(f"\n🤖 Step 5/5: Generating AI insights with Claude Sonnet 4...")
+        if analysis_id:
+            await progress_tracker.update(
+                analysis_id, 
+                "ai_analysis", 
+                90, 
+                "Generating AI insights with Claude Sonnet 4..."
+            )
         # ========== END OF NEW SECTION ==========
         ai_result = await _generate_deep_ai_analysis(
             performance=performance,
@@ -158,6 +221,15 @@ async def generate_structured_analysis(
             matches_analyzed=len(matches_data),
             deep_analysis_results=deep_analysis_results
         )
+        
+        if analysis_id:
+            await progress_tracker.update(
+                analysis_id, 
+                "complete", 
+                100, 
+                "Analysis complete!"
+            )
+        
         print(f"\n{'='*60}")
         print(f"✅ Deep Analysis Complete!")
         print(f"{'='*60}\n")

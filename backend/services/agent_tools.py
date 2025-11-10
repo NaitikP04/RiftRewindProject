@@ -15,6 +15,7 @@ from langchain_aws import ChatBedrock
 from . import riot_api
 from .rate_limiter import rate_limiter
 from .bedrock_rate_limiter import bedrock_rate_limiter
+from .cache_manager import cache_manager
 
 load_dotenv()
 RIOT_API_KEY = os.getenv("RIOT_API_KEY")
@@ -285,7 +286,7 @@ async def _get_match_queue_id(match_id: str) -> Tuple[str, Optional[int]]:
 
 async def get_match_details_batch(match_ids: List[str]) -> List[Dict[str, Any]]:
     """
-    Fetch match details in batches with rate limiting.
+    Fetch match details in batches with rate limiting and caching.
     
     Args:
         match_ids: List of match IDs
@@ -296,26 +297,57 @@ async def get_match_details_batch(match_ids: List[str]) -> List[Dict[str, Any]]:
     print(f"📥 Fetching details for {len(match_ids)} matches...")
     
     results = []
-    total = len(match_ids)
+    to_fetch = []
+    cache_hits = 0
+    
+    # Check cache first
+    for match_id in match_ids:
+        cached = cache_manager.get_match(match_id)
+        if cached:
+            results.append(cached)
+            cache_hits += 1
+        else:
+            to_fetch.append(match_id)
+    
+    if cache_hits > 0:
+        print(f"   💾 Cache hits: {cache_hits}/{len(match_ids)} ({cache_hits/len(match_ids)*100:.0f}%)")
+    
+    if not to_fetch:
+        print(f"   ✅ All matches loaded from cache!\n")
+        return results
+    
+    print(f"   🌐 Fetching {len(to_fetch)} new matches from API...")
+    
+    total = len(to_fetch)
     
     # Process in small batches to respect rate limits
     batch_size = 10
     
-    for i in range(0, len(match_ids), batch_size):
-        batch = match_ids[i:i + batch_size]
+    for i in range(0, len(to_fetch), batch_size):
+        batch = to_fetch[i:i + batch_size]
         
         tasks = []
         for match_id in batch:
             tasks.append(_fetch_match_with_retry(match_id))
         
         batch_results = await asyncio.gather(*tasks)
-        valid_results = [r for r in batch_results if r is not None]
-        results.extend(valid_results)
+        
+        # Store in cache and add to results
+        newly_fetched = {}
+        for match_id, match_data in zip(batch, batch_results):
+            if match_data is not None:
+                results.append(match_data)
+                newly_fetched[match_id] = match_data
+        
+        # Batch save to cache
+        if newly_fetched:
+            cache_manager.store_matches_batch(newly_fetched)
         
         progress = min((i + batch_size) / total * 100, 100)
-        print(f"   Progress: {progress:.0f}% ({len(results)}/{total})", end='\r')
+        fetched_count = len([r for r in batch_results if r is not None])
+        print(f"   Progress: {progress:.0f}% ({len(results)}/{len(match_ids)})", end='\r')
     
-    print(f"\n   ✅ Successfully fetched {len(results)}/{total} matches\n")
+    print(f"\n   ✅ Successfully fetched {len(results)}/{len(match_ids)} matches\n")
     
     return results
 

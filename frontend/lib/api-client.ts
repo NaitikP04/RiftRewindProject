@@ -28,6 +28,7 @@ export interface ProfileResponse {
 
 export interface AnalysisResponse {
   success: boolean
+  analysis_id?: string
   data?: {
     displayName: string
     profilePicture: string

@@ -68,6 +68,9 @@ async def get_player_profile(game_name: str, tag_line: str) -> Dict[str, Any]:
         
         print(f"✓ Summoner Level: {summoner['summonerLevel']}")
         
+        # Step 2.5: Validate and get profile icon URL with fallback
+        profile_icon_url = await _get_profile_icon_url(summoner['profileIconId'])
+        
         # Step 3: Get rank
         rank = await _get_summoner_rank(puuid, platform)
         
@@ -89,7 +92,7 @@ async def get_player_profile(game_name: str, tag_line: str) -> Dict[str, Any]:
                 "display_name": f"{game_name}#{tag_line}",
                 "summoner_level": summoner['summonerLevel'],
                 "profile_icon_id": summoner['profileIconId'],
-                "profile_icon_url": f"{DD_BASE_URL}/img/profileicon/{summoner['profileIconId']}.png",
+                "profile_icon_url": profile_icon_url,
                 "rank": rank,
                 "main_role": main_role
             }
@@ -148,6 +151,39 @@ async def _get_summoner_by_puuid(puuid: str, platform: str = "na1") -> Optional[
         except Exception as e:
             print(f"Exception fetching summoner: {e}")
             return None
+
+
+async def _get_profile_icon_url(icon_id: int, max_retries: int = 3) -> str:
+    """
+    Get profile icon URL with validation and fallback to default.
+    
+    Args:
+        icon_id: Profile icon ID from summoner data
+        max_retries: Number of retry attempts
+    
+    Returns:
+        Valid profile icon URL or default fallback URL
+    """
+    # Try multiple Data Dragon versions for compatibility
+    versions_to_try = [DD_VERSION, "14.23.1", "14.22.1", "latest"]
+    
+    for version in versions_to_try:
+        url = f"https://ddragon.leagueoflegends.com/cdn/{version}/img/profileicon/{icon_id}.png"
+        
+        # Quick validation check (no rate limit needed for CDN)
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            try:
+                response = await client.head(url)
+                if response.status_code == 200:
+                    print(f"✓ Profile icon validated: {url}")
+                    return url
+            except Exception:
+                continue
+    
+    # Fallback to a known default icon
+    default_url = f"https://ddragon.leagueoflegends.com/cdn/{DD_VERSION}/img/profileicon/29.png"
+    print(f"⚠️ Using default profile icon (ID {icon_id} not found)")
+    return default_url
 
 
 async def _get_summoner_rank(puuid: str, platform: str = "na1") -> Dict[str, Any]:

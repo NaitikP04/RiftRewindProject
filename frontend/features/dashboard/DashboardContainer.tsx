@@ -61,9 +61,14 @@ export function DashboardContainer() {
         </motion.div>
 
         {/* Hero Row - Champions */}
-        <section className="mb-8">
-          <motion.h2 initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-4 text-2xl font-bold text-white">
-            Top Champions
+        <section className="mb-12">
+          <motion.h2 
+            initial={{ opacity: 0, x: -20 }} 
+            animate={{ opacity: 1, x: 0 }} 
+            transition={{ delay: 0.1 }}
+            className="mb-6 text-3xl font-bold text-white"
+          >
+            🏆 Top Champions
           </motion.h2>
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {playerData.topChampions.map((champion, index) => (
@@ -73,40 +78,40 @@ export function DashboardContainer() {
         </section>
 
         {/* Stat Highlights */}
-        <section className="mb-8">
+        <section className="mb-12">
           <motion.h2
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.1 }}
-            className="mb-4 text-2xl font-bold text-white"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.2 }}
+            className="mb-6 text-3xl font-bold text-white"
           >
-            Performance Highlights
+            ⚡ Performance Highlights
           </motion.h2>
           <StatHighlights highlights={playerData.highlights} />
         </section>
 
         {/* AI Insights */}
-        <section className="mb-8">
+        <section className="mb-12">
           <motion.h2
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.2 }}
-            className="mb-4 text-2xl font-bold text-white"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.3 }}
+            className="mb-6 text-3xl font-bold text-white"
           >
-            AI Analysis
+            🤖 AI Analysis
           </motion.h2>
           <AIInsights insight={playerData.aiInsight} personality={playerData.personality} />
         </section>
 
         {/* Season Performance Trends - Interactive rank progression chart */}
-        <section>
+        <section className="mb-8">
           <motion.h2
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.25 }}
-            className="mb-4 text-2xl font-bold text-white"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.4 }}
+            className="mb-6 text-3xl font-bold text-white"
           >
-            Season Performance Trends
+            📈 Season Performance Trends
           </motion.h2>
           <SeasonTrendContainer />
         </section>
