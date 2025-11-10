@@ -457,71 +457,118 @@ async def _generate_deep_ai_analysis(
     """
     
     # Prepare comprehensive data for AI
-    prompt = f"""You are an expert League of Legends analyst. Provide a deep, personalized analysis for this player.
+    prompt = f"""You are an expert League of Legends analyst with deep knowledge of high-ELO gameplay, champion mechanics, and win conditions. Provide a data-driven, personalized analysis for this player.
 
 PLAYER PROFILE:
-- Rank: {rank_info['display']}
-- Matches Analyzed: {matches_analyzed}
-- Main Role: {champion_pool.get('primary_role', 'Unknown')}
+- Current Rank: {rank_info['display']}
+- Division LP: {rank_info.get('lp', 'N/A')} LP
+- Win/Loss Record: {rank_info.get('wins', 0)}W / {rank_info.get('losses', 0)}L
+- Total Matches Analyzed: {matches_analyzed} recent ranked games
+- Primary Role: {champion_pool.get('primary_role', 'Unknown')}
 
-AGGREGATE PERFORMANCE ("Wide" Data):
-- Win Rate: {performance.get('overall_win_rate', 0):.1f}%
-- Average KDA: {performance.get('avg_kda', 0):.2f} (K:{performance.get('avg_kills', 0):.1f} / D:{performance.get('avg_deaths', 0):.1f} / A:{performance.get('avg_assists', 0):.1f})
-- CS/min: {performance.get('avg_cs_per_min', 0):.1f}
-- Vision Score/min: {performance.get('avg_vision_per_min', 0):.2f}
-- Top Champions: {json.dumps([f"{c['name']}: {c['games']} games, {c['win_rate']:.1f}% WR" for c in champion_pool.get('top_champions', [])[:3]], indent=2)}
-- Playstyle: {playstyle.get('primary_trait', 'Unknown')}
-- Advanced Stats: {json.dumps(detailed_stats, indent=2)}
+AGGREGATE PERFORMANCE METRICS ("Wide" Data):
+Win Rate & Combat Stats:
+- Overall Win Rate: {performance.get('overall_win_rate', 0):.1f}%
+- Average KDA Ratio: {performance.get('avg_kda', 0):.2f}
+  - Kills: {performance.get('avg_kills', 0):.1f} per game
+  - Deaths: {performance.get('avg_deaths', 0):.1f} per game
+  - Assists: {performance.get('avg_assists', 0):.1f} per game
+- Kill Participation: {performance.get('kill_participation', 0):.1f}%
 
-DETAILED MATCH BREAKDOWNS ("Deep" Data):
-{json.dumps(deep_analysis_results, indent=2, default=str) if deep_analysis_results else "No deep analysis available."}
+Farm & Economy:
+- CS per Minute: {performance.get('avg_cs_per_min', 0):.1f}
+- Gold per Minute: {performance.get('avg_gold_per_min', 0):.0f}
+- Total CS: {performance.get('avg_cs', 0):.0f} average per game
 
-BENCHMARKS (for context):
-- {rank_info.get('tier', 'GOLD')} Average KDA: 2.8-3.2
-- {rank_info.get('tier', 'GOLD')} Average CS/min: 6.0-6.5
-- {rank_info.get('tier', 'GOLD')} Average Vision/min: 0.8-1.2
+Vision & Map Control:
+- Vision Score per Minute: {performance.get('avg_vision_per_min', 0):.2f}
+- Control Wards Purchased: {performance.get('avg_control_wards', 0):.1f} per game
+- Wards Placed: {performance.get('avg_wards_placed', 0):.1f} per game
 
-YOUR TASK:
-Generate 3 Stat Highlights, 1 Deep Insight, 1 Personality, and 3 Recommended Actions.
+Damage & Combat:
+- Total Damage to Champions: {performance.get('avg_damage', 0):,.0f} per game
+- Damage per Minute: {performance.get('damage_per_min', 0):.0f}
+- First Blood Rate: {performance.get('first_blood_rate', 0):.1f}%
 
-1.  **Select 3 Best Stat Highlights**: Choose from the "Wide" Data. Be specific with numbers.
+Champion Pool (Top 3 by Games Played):
+{chr(10).join([f"  • {c['name']}: {c['games']} games, {c['win_rate']:.1f}% WR, {c.get('avg_kda', 0):.2f} KDA" for c in champion_pool.get('top_champions', [])[:3]])}
 
-2.  **Write Deep AI Insight (4-5 sentences)**: This is the most important part.
-        -   **You MUST use the "Deep" Data (match breakdown summaries, keyFactors, and statProfile).**
-        -   Find a connection between the "Wide" data and "Deep" data.
-    -   Example: If "Wide" data shows a 30% WR on Vayne, and "Deep" data says "In this match, player died 3 times solo in the side lane," then your insight should be:
-        "Your stats show you struggle on Vayne (30% WR), and we found a 'gameplay bug' that might be the cause: we analyzed a key loss and found a pattern of you getting caught farming solo in a side-lane post-20 minutes. Fixing this one habit could be the key to climbing."
-    -   Identify 1 critical weakness *with evidence from the match breakdown analysis*.
-    -   Provide 1 actionable improvement.
+Playstyle Tendencies:
+- Primary Trait: {playstyle.get('primary_trait', 'Unknown')}
+- Aggression Score: {playstyle.get('aggression_score', 0):.1f}/10
+- Team Fight Focus: {playstyle.get('teamfight_focus', 0):.1f}/10
+- Solo Carry Attempts: {playstyle.get('solo_carry', 0):.1f}/10
 
-3.  **Determine Personality**: Pick ONE that best fits:
-    - "Aggressive Playmaker"
-    - "Teamfight Specialist"  
-    - "Vision Master"
-    - "Carry Player"
-    - "Consistent Performer"
-    - "Strategic Player"
+Advanced Performance Indicators:
+{json.dumps(detailed_stats, indent=2)}
 
-4.  **Recommend 3 Concrete Actions**:
-        - Anchor each action in either the aggregate stats or a specific match breakdown.
-        - Make each action a single sentence that starts with a verb ("Focus", "Practice", "Track", etc.).
-        - Avoid generic advice; include measurable targets (e.g. "raise vision to 1.2/min").
+DETAILED MATCH ANALYSIS ("Deep" Data - Key Games):
+{json.dumps(deep_analysis_results, indent=2, default=str) if deep_analysis_results else "No detailed match breakdowns available. Base analysis on aggregate stats only."}
 
-IMPORTANT: 
-- No generic statements.
-- The "Deep AI Insight" MUST be based on the "Detailed Match Breakdowns". If that data is empty, just report on the aggregate stats.
-- Connect the match evidence to a broader pattern.
+RANK-SPECIFIC BENCHMARKS (for {rank_info.get('tier', 'GOLD')} tier):
+- Expected KDA: 2.8-3.5 (2.0-2.5 for supports)
+- Expected CS/min: 6.0-7.0 for laners (4.5-5.5 for junglers)
+- Expected Vision/min: 1.0-1.5 (1.5-2.5 for supports)
+- Expected Win Rate: 48-52% (balanced)
+- Expected Kill Participation: 55-65%
 
-RESPOND IN EXACT JSON FORMAT:
+ANALYSIS REQUIREMENTS:
+
+1. **Select 3 SPECIFIC Stat Highlights**:
+   - Choose the most impressive or concerning stats from the data above
+   - Use EXACT numbers (e.g., "3.8 KDA" not "high KDA")
+   - Compare to rank benchmarks when relevant
+   - Mix positive achievements with areas needing improvement
+
+2. **Write Deep AI Insight (4-6 sentences with EVIDENCE)**:
+   - **CRITICAL**: You MUST reference specific data from the "Detailed Match Analysis" if available
+   - Identify ONE major pattern or "gameplay bug" that's holding them back
+   - Connect aggregate stats to specific in-game behaviors from match breakdowns
+   - Provide ONE actionable fix with measurable impact
+   - Example good insight: "Your 28% win rate on Yasuo (15 games) reveals a critical pattern: in the analyzed loss, you died 7 times with an average death timer of 35 seconds, mostly from solo engages without vision. The data shows you average 6.2 deaths on Yasuo vs 4.1 on other champions. Fix: Track your death timers and avoid fights without team backup after 20 minutes - this alone could add 3+ wins."
+   - Avoid generic statements like "improve mechanics" or "play more carefully"
+
+3. **Determine Personality** (pick ONE that fits their playstyle data):
+   - "Aggressive Playmaker" - high aggression score, first blood attempts
+   - "Teamfight Specialist" - high teamfight focus, good KP%
+   - "Vision Master" - high vision score, control wards
+   - "Carry Player" - high damage, low deaths, solo carry attempts
+   - "Consistent Performer" - balanced stats, low variance
+   - "Strategic Player" - high CS, low aggression, objective focus
+   - "Supportive Player" - high assists, high vision, team-oriented
+
+4. **Recommend 3 CONCRETE, MEASURABLE Actions**:
+   - Each action must be specific and trackable
+   - Reference either aggregate stats or match breakdown evidence
+   - Include target numbers or thresholds
+   - Start with action verbs (Improve, Increase, Reduce, Focus, Practice)
+   - Examples:
+     * "Increase CS/min from {performance.get('avg_cs_per_min', 0):.1f} to 6.5 by practicing last-hitting in practice tool for 10 minutes daily"
+     * "Reduce deaths from {performance.get('avg_deaths', 0):.1f} to 4.0 by tracking death timers and avoiding risky plays after losing tier 2 towers"
+     * "Raise vision score from {performance.get('avg_vision_per_min', 0):.2f} to 1.2/min by placing 2+ control wards per game and sweeping before objectives"
+
+CRITICAL RULES:
+- NO generic advice ("play better", "improve mechanics", "focus more")
+- USE exact numbers from the data provided
+- REFERENCE match breakdown evidence in your insight if available
+- BE SPECIFIC about what stat to improve and by how much
+- EXPLAIN the "why" behind your recommendations with data
+- If deep match data is missing, clearly state you're analyzing aggregate stats only
+
+RESPOND IN EXACT JSON FORMAT (no markdown, no code blocks):
 {{
   "highlights": [
-    {{"stat": "descriptive title", "value": "number with unit"}},
-    {{"stat": "descriptive title", "value": "number with unit"}},
-    {{"stat": "descriptive title", "value": "number with unit"}}
+    {{"stat": "Precise stat name with context", "value": "exact number with unit"}},
+    {{"stat": "Precise stat name with context", "value": "exact number with unit"}},
+    {{"stat": "Precise stat name with context", "value": "exact number with unit"}}
   ],
-  "insight": "your 4-5 sentence deep analysis here, using the deep dive data",
-    "personality": "chosen personality",
-    "recommendedActions": ["action one", "action two", "action three"]
+  "insight": "Your 4-6 sentence data-driven analysis with specific evidence from match breakdowns and aggregate stats, identifying one key pattern and one actionable fix",
+  "personality": "chosen personality from the list above",
+  "recommendedActions": [
+    "Specific action #1 with measurable target based on their current stats",
+    "Specific action #2 with measurable target based on their current stats", 
+    "Specific action #3 with measurable target based on their current stats"
+  ]
 }}"""
     
     try:

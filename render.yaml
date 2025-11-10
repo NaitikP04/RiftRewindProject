@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: rift-rewind-api
+    env: python
+    region: oregon
+    plan: starter
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: RIOT_API_KEY
+        sync: false
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: AWS_REGION
+        value: us-east-1
+      - key: PYTHON_VERSION
+        value: 3.11
+      - key: ALLOWED_ORIGINS
+        value: https://rift-rewind.vercel.app,http://localhost:3000
+    healthCheckPath: /api/health
